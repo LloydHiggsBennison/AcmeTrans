@@ -1,0 +1,264 @@
+import { useMemo, useState } from "react";
+import { estimateRoute } from "../utils/routeEstimator";
+import { getTripMetrics } from "../utils/tripMetrics";
+
+const ESTADOS = ["todos", "pendiente", "en-curso", "completado"];
+
+export function Viajes({
+  viajes,
+  conductores,
+  origenes,
+  regiones,
+  onAdd,
+  onUpdate,
+}) {
+  const [form, setForm] = useState({
+    conductorId: "",
+    origen: origenes[1]?.nombre || "Santiago",
+    destino: "",
+    distanciaKm: "",
+    duracionHoras: "",
+  });
+  const [filtroEstado, setFiltroEstado] = useState("todos");
+
+  const filtrados = useMemo(() => {
+    if (filtroEstado === "todos") return viajes;
+    return viajes.filter((v) => v.estado === filtroEstado);
+  }, [viajes, filtroEstado]);
+
+  const actualizarEstimacion = (nuevoOrigen, nuevoDestino) => {
+    if (!nuevoOrigen || !nuevoDestino) {
+      setForm((f) => ({ ...f, distanciaKm: "", duracionHoras: "" }));
+      return;
+    }
+    const { distanciaKm, duracionHoras } = estimateRoute(
+      nuevoOrigen,
+      nuevoDestino
+    );
+    setForm((f) => ({
+      ...f,
+      distanciaKm,
+      duracionHoras,
+    }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.conductorId || !form.origen || !form.destino) return;
+    onAdd(form);
+    setForm({
+      conductorId: "",
+      origen: origenes[1]?.nombre || "Santiago",
+      destino: "",
+      distanciaKm: "",
+      duracionHoras: "",
+    });
+  };
+
+  const getConductorName = (id) =>
+    conductores.find((c) => c.id === Number(id))?.nombre ?? "N/D";
+
+  return (
+    <section className="page">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">
+            <span className="icon">🚚</span> Gestión de Viajes
+          </h1>
+          <p className="page-subtitle">
+            Registra nuevos viajes, controla su estado y visualiza su avance.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid-2" style={{ marginBottom: 18 }}>
+        <form className="card" onSubmit={handleSubmit}>
+          <div className="card-header">
+            <span>Registrar nuevo viaje</span>
+            <span className="tag tag-info">Estimación automática</span>
+          </div>
+
+          <div className="grid-2" style={{ marginBottom: 10 }}>
+            <div>
+              <div className="label">Conductor</div>
+              <select
+                className="select"
+                value={form.conductorId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, conductorId: e.target.value }))
+                }
+              >
+                <option value="">Seleccione conductor</option>
+                {conductores.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    #{c.id} · {c.nombre} ({c.origen} · {c.tipo})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div className="label">Origen</div>
+              <select
+                className="select"
+                value={form.origen}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setForm((f) => ({ ...f, origen: value }));
+                  actualizarEstimacion(value, form.destino);
+                }}
+              >
+                {origenes.map((o) => (
+                  <option key={o.id} value={o.nombre}>
+                    {o.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid-2" style={{ marginBottom: 10 }}>
+            <div>
+              <div className="label">Destino (Región)</div>
+              <select
+                className="select"
+                value={form.destino}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setForm((f) => ({ ...f, destino: value }));
+                  actualizarEstimacion(form.origen, value);
+                }}
+              >
+                <option value="">Seleccione región...</option>
+                {regiones.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div className="label">Distancia estimada (km)</div>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={form.distanciaKm}
+                readOnly
+              />
+              <div className="helper-text">
+                Calculado automáticamente según origen y región.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <div className="label">Duración estimada (horas)</div>
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="0.1"
+              value={form.duracionHoras}
+              readOnly
+            />
+          </div>
+
+          <button className="btn btn-primary" type="submit">
+            ➕ Registrar viaje
+          </button>
+        </form>
+
+        <div className="card">
+          <div className="card-header">
+            <span>Filtro por estado</span>
+          </div>
+          <div>
+            <div className="label">Estado</div>
+            <select
+              className="select"
+              value={filtroEstado}
+              onChange={(e) => setFiltroEstado(e.target.value)}
+            >
+              {ESTADOS.map((e) => (
+                <option key={e} value={e}>
+                  {e === "todos" ? "Todos los estados" : e}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="list">
+        {filtrados.map((v) => {
+          const metrics = getTripMetrics(v);
+          const progresoPct = metrics ? Math.round(metrics.progreso * 100) : 0;
+
+          return (
+            <div key={v.id} className="list-item">
+              <div>
+                <div style={{ fontWeight: 600 }}>
+                  #{v.id} · {v.origen} → {v.destino}
+                </div>
+                <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                  Conductor: {getConductorName(v.conductorId)} · Fecha:{" "}
+                  {v.fecha}
+                </div>
+                {metrics && (
+                  <div style={{ marginTop: 6 }}>
+                    <div
+                      style={{
+                        height: 6,
+                        borderRadius: 999,
+                        background: "#1f2937",
+                        overflow: "hidden",
+                        marginBottom: 4,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${progresoPct}%`,
+                          height: "100%",
+                          background:
+                            "linear-gradient(90deg,#38bdf8,#a855f7,#f97316)",
+                          transition: "width 0.5s linear",
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                      Avance: {metrics.distanciaRecorrida} km recorridos ·{" "}
+                      {metrics.distanciaRestante} km restantes ·{" "}
+                      {metrics.horasTranscurridas} h /{" "}
+                      {metrics.horasRestantes} h restantes
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: "right", minWidth: 160 }}>
+                <select
+                  className="select"
+                  value={v.estado}
+                  onChange={(e) =>
+                    onUpdate(v.id, { ...v, estado: e.target.value })
+                  }
+                >
+                  <option value="pendiente">pendiente</option>
+                  <option value="en-curso">en-curso</option>
+                  <option value="completado">completado</option>
+                </select>
+                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
+                  {v.distanciaKm ?? 0} km · {v.duracionHoras ?? 0} h
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {filtrados.length === 0 && (
+          <div className="placeholder-panel">
+            No hay viajes que coincidan con el filtro seleccionado.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
