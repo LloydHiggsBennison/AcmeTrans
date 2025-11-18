@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { estimateRoute } from "../utils/routeEstimator";
 import { getTripMetrics } from "../utils/tripMetrics";
 
 const ESTADOS = ["todos", "pendiente", "en-curso", "completado"];
@@ -21,25 +20,54 @@ export function Viajes({
   });
   const [filtroEstado, setFiltroEstado] = useState("todos");
 
+  const [rutaLoading, setRutaLoading] = useState(false);
+  const [rutaError, setRutaError] = useState("");
+
+  // Solo conductores que NO están ocupados
+  const conductoresDisponibles = useMemo(
+    () => conductores.filter((c) => c.estado !== "ocupado"),
+    [conductores]
+  );
+
   const filtrados = useMemo(() => {
     if (filtroEstado === "todos") return viajes;
     return viajes.filter((v) => v.estado === filtroEstado);
   }, [viajes, filtroEstado]);
 
-  const actualizarEstimacion = (nuevoOrigen, nuevoDestino) => {
+  const actualizarEstimacion = async (nuevoOrigen, nuevoDestino) => {
+    // Si falta algo, limpiamos la estimación
     if (!nuevoOrigen || !nuevoDestino) {
       setForm((f) => ({ ...f, distanciaKm: "", duracionHoras: "" }));
       return;
     }
-    const { distanciaKm, duracionHoras } = estimateRoute(
-      nuevoOrigen,
-      nuevoDestino
-    );
-    setForm((f) => ({
-      ...f,
-      distanciaKm,
-      duracionHoras,
-    }));
+
+    setRutaLoading(true);
+    setRutaError("");
+    try {
+      const { distanciaKm, duracionHoras } = await obtenerRutaDesdeOSRM(
+        nuevoOrigen,
+        nuevoDestino
+      );
+
+      setForm((f) => ({
+        ...f,
+        distanciaKm: Number(distanciaKm.toFixed(1)),
+        duracionHoras: Number(duracionHoras.toFixed(1)),
+      }));
+    } catch (err) {
+      console.error(err);
+      setRutaError(
+        "No se pudo obtener la ruta en línea. Se usa una estimación básica."
+      );
+      const fallback = fallbackRoute(nuevoOrigen, nuevoDestino);
+      setForm((f) => ({
+        ...f,
+        distanciaKm: fallback.distanciaKm,
+        duracionHoras: fallback.duracionHoras,
+      }));
+    } finally {
+      setRutaLoading(false);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -53,6 +81,7 @@ export function Viajes({
       distanciaKm: "",
       duracionHoras: "",
     });
+    setRutaError("");
   };
 
   const getConductorName = (id) =>
@@ -89,7 +118,7 @@ export function Viajes({
                 }
               >
                 <option value="">Seleccione conductor</option>
-                {conductores.map((c) => (
+                {conductoresDisponibles.map((c) => (
                   <option key={c.id} value={c.id}>
                     #{c.id} · {c.nombre} ({c.origen} · {c.tipo})
                   </option>
@@ -146,8 +175,21 @@ export function Viajes({
                 readOnly
               />
               <div className="helper-text">
-                Calculado automáticamente según origen y región.
+                {rutaLoading
+                  ? "Calculando ruta..."
+                  : "Calculado automáticamente según origen y región."}
               </div>
+              {rutaError && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "#f97373",
+                    marginTop: 4,
+                  }}
+                >
+                  {rutaError}
+                </div>
+              )}
             </div>
           </div>
 
@@ -163,7 +205,7 @@ export function Viajes({
             />
           </div>
 
-          <button className="btn btn-primary" type="submit">
+          <button className="btn btn-primary" type="submit" disabled={rutaLoading}>
             ➕ Registrar viaje
           </button>
         </form>
@@ -261,4 +303,57 @@ export function Viajes({
       </div>
     </section>
   );
+}
+
+/* =========================================================
+   AUXILIARES: API PÚBLICA PARA RUTAS
+   ========================================================= */
+
+async function buscarCoordenadas(lugar) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
+    lugar + ", Chile"
+  )}`;
+
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Corporativa-AcmeTrans/1.0 (viajes-page)",
+    },
+  });
+
+  const data = await res.json();
+  if (!data.length) throw new Error("No se encontraron coordenadas.");
+
+  return {
+    lat: parseFloat(data[0].lat),
+    lon: parseFloat(data[0].lon),
+  };
+}
+
+async function obtenerRutaDesdeOSRM(origen, destino) {
+  const coordOrigen = await buscarCoordenadas(origen);
+  const coordDestino = await buscarCoordenadas(destino);
+
+  const url = `https://router.project-osrm.org/route/v1/driving/${coordOrigen.lon},${coordOrigen.lat};${coordDestino.lon},${coordDestino.lat}?overview=false`;
+
+  const res = await fetch(url);
+  const data = await res.json();
+
+  if (!data.routes || !data.routes.length) {
+    throw new Error("No se pudo obtener ruta desde OSRM.");
+  }
+
+  const ruta = data.routes[0];
+
+  return {
+    distanciaKm: ruta.distance / 1000,
+    duracionHoras: ruta.duration / 3600,
+  };
+}
+
+function fallbackRoute(origen, destino) {
+  // Aquí podrías afinar según combinaciones conocidas; por ahora, algo genérico.
+  return {
+    distanciaKm: 300,
+    duracionHoras: 4,
+  };
 }

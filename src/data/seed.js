@@ -74,3 +74,11 @@ export const seedViajes = [
     inicio: new Date().toISOString(),
   },
 ];
+
+export const SOLICITUDES = [
+  { id: 1, titulo: "Traslado urgente", fecha: "2025-11-21", estado: "nuevo",  destino: "Región de Valparaíso" },
+  { id: 2, titulo: "Carga refrigerada", fecha: "2025-11-22", estado: "nuevo",  destino: "Región de Atacama" },
+  { id: 3, titulo: "Despacho cadena logística", fecha: "2025-11-22", estado: "en-curso",  destino: "Región de Coquimbo" },
+  { id: 4, titulo: "Traslado interregional", fecha: "2025-11-23", estado: "completado", destino: "Región de Los Ríos" },
+  { id: 5, titulo: "Solicitud interna", fecha: "2025-11-24", estado: "en-curso",  destino: "Región de Los Lagos" },
+];

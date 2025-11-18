@@ -1,7 +1,13 @@
+// src/components/Navbar.jsx
+
 const TABS = [
   { id: "dashboard", label: "Dashboard", emoji: "📊" },
   { id: "conductores", label: "Conductores", emoji: "🧑‍✈️" },
   { id: "viajes", label: "Viajes", emoji: "🚚" },
+
+  // 🔥 Nuevo botón Calendario agregado aquí
+  { id: "calendario", label: "Calendario", emoji: "📅" },
+
   { id: "rutas", label: "Rutas", emoji: "🗺️" },
   { id: "seguimiento", label: "Seguimiento", emoji: "📍" },
   { id: "reportes", label: "Reportes", emoji: "📑" },

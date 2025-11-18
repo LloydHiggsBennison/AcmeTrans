@@ -1,0 +1,140 @@
+/* === CONTENEDOR GENERAL === */
+.calendar-card {
+  background: #0d1117;
+  border: 1px solid #1f2937;
+  border-radius: 14px;
+  padding: 20px;
+  margin-top: 20px;
+  color: #e5e7eb;
+}
+
+/* === HEADER DEL CALENDARIO === */
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.calendar-title {
+  font-size: 20px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+/* === BOTONES IZQ/DER === */
+.calendar-header .btn {
+  background: #111827;
+  border: 1px solid #374151;
+  color: #e5e7eb;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+/* === GRID === */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+/* === NOMBRES DE DÍAS === */
+.calendar-weekday {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 0;
+  color: #9ca3af;
+  border-bottom: 1px solid #1f2937;
+}
+
+/* === CELDAS === */
+.calendar-cell {
+  min-height: 110px;
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.calendar-cell.empty {
+  background: transparent;
+  border: none;
+}
+
+/* === NÚMERO DE DÍA === */
+.calendar-day-number {
+  font-size: 13px;
+  color: #9ca3af;
+  position: absolute;
+  top: 6px;
+  right: 8px;
+}
+
+/* === EVENTOS === */
+.calendar-events {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 80px;        /* limita alto del área de eventos */
+  overflow-y: auto;        /* agrega scroll si hay muchos */
+  padding-right: 4px;      /* deja espacio al scroll */
+}
+
+
+.calendar-event {
+  background: #1e3a8a;
+  color: #f1f5f9;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+  border-left: 3px solid #3b82f6;
+}
+
+/* Hospedaje */
+.calendar-event-hospedaje {
+  background: #78350f;
+  border-left: 3px solid #fbbf24;
+}
+
+.calendar-event-main {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.calendar-event-sub {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* === LEYENDA === */
+.calendar-legend {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.badge {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.badge-normal {
+  background: #1e3a8a;
+}
+
+.badge-hospedaje {
+  background: #78350f;
+}
