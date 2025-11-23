@@ -3,13 +3,11 @@
 const TABS = [
   { id: "dashboard", label: "Dashboard", emoji: "📊" },
   { id: "conductores", label: "Conductores", emoji: "🧑‍✈️" },
-  { id: "viajes", label: "Viajes", emoji: "🚚" },
-
-  // 🔥 Nuevo botón Calendario agregado aquí
-  { id: "calendario", label: "Calendario", emoji: "📅" },
-
   { id: "rutas", label: "Rutas", emoji: "🗺️" },
+  { id: "viajes", label: "Viajes", emoji: "🚚" },
   { id: "seguimiento", label: "Seguimiento", emoji: "📍" },
+  { id: "calendario", label: "Calendario", emoji: "📅" },
+  { id: "director", label: "Director", emoji: "🧾" },
   { id: "reportes", label: "Reportes", emoji: "📑" },
 ];
 

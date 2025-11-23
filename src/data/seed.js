@@ -1,13 +1,15 @@
-// Definición de orígenes y capacidad de camiones
-const origenesDef = [
+// ===============================
+// ORÍGENES Y CAPACIDAD POR BASE
+// ===============================
+export const ORIGENES = [
   { id: "osorno", nombre: "Osorno", gc: 3, mc: 6 },
   { id: "santiago", nombre: "Santiago", gc: 5, mc: 8 },
   { id: "coquimbo", nombre: "Coquimbo", gc: 3, mc: 4 },
 ];
 
-export const ORIGENES = origenesDef;
-
-// Regiones oficiales de Chile (puedes ajustar nombres si tu profe usa otra nomenclatura)
+// ===============================
+// REGIONES DE CHILE
+// ===============================
 export const REGIONES_CHILE = [
   "Región de Arica y Parinacota",
   "Región de Tarapacá",
@@ -27,58 +29,155 @@ export const REGIONES_CHILE = [
   "Región de Magallanes y de la Antártica Chilena",
 ];
 
-// Generamos conductores para TODOS los camiones (GC + MC)
-let idCounter = 1;
-export const seedConductores = [];
+// ========================================================
+// CAMIONES Y CHÓFERES (se generan juntos pero son separables)
+// ========================================================
+let autoId = 1;
 
-origenesDef.forEach((o) => {
-  // GC
-  for (let i = 1; i <= o.gc; i++) {
-    seedConductores.push({
-      id: idCounter++,
-      nombre: `Conductor ${o.nombre} GC ${i}`,
-      licencia: `LC-${o.id.toUpperCase()}-GC-${i.toString().padStart(2, "0")}`,
-      telefono: "+56 9 0000 0000",
-      estado: "disponible",
-      vehiculo: "Camión de Gran Capacidad",
+export const seedCamiones = ORIGENES.flatMap((origen) => {
+  const camiones = [];
+
+  for (let i = 1; i <= origen.gc; i++) {
+    camiones.push({
+      id: `GC-${origen.id}-${i}`,
+      origen: origen.nombre,
       tipo: "GC",
-      origen: o.nombre,
-    });
-  }
-  // MC
-  for (let i = 1; i <= o.mc; i++) {
-    seedConductores.push({
-      id: idCounter++,
-      nombre: `Conductor ${o.nombre} MC ${i}`,
-      licencia: `LC-${o.id.toUpperCase()}-MC-${i.toString().padStart(2, "0")}`,
-      telefono: "+56 9 1111 1111",
+      nombre: `Camión GC ${origen.nombre} ${i}`,
+      capacidadKg: 28000,
+      capacidadM3: 60,
       estado: "disponible",
-      vehiculo: "Camión de Mediana Capacidad",
-      tipo: "MC",
-      origen: o.nombre,
     });
   }
+
+  for (let i = 1; i <= origen.mc; i++) {
+    camiones.push({
+      id: `MC-${origen.id}-${i}`,
+      origen: origen.nombre,
+      tipo: "MC",
+      nombre: `Camión MC ${origen.nombre} ${i}`,
+      capacidadKg: 14000,
+      capacidadM3: 35,
+      estado: "disponible",
+    });
+  }
+
+  return camiones;
 });
 
-// Un viaje de ejemplo
+// ========================================================
+// CONDUCTORES (sin camión fijo, asignación es dinámica)
+// ========================================================
+export const seedConductores = ORIGENES.flatMap((origen) => {
+  const lista = [];
+
+  for (let i = 1; i <= origen.gc + origen.mc; i++) {
+    lista.push({
+      id: autoId++,
+      nombre: `Conductor ${origen.nombre} ${i}`,
+      licencia: i <= origen.gc ? "A5" : "A4",
+      telefono: `+56 9 8${i}00${String(i).padStart(2, "0")}`,
+      estado: "disponible",
+      origen: origen.nombre,
+      bloqueos: [],
+    });
+  }
+
+  return lista;
+});
+
+// ========================================================
+// VIAJES DE EJEMPLO
+// ========================================================
+const hoyStr = new Date().toISOString().split("T")[0];
+
 export const seedViajes = [
   {
     id: 1,
     conductorId: 1,
+    camionId: "GC-osorno-1",
     origen: "Osorno",
     destino: "Región Metropolitana de Santiago",
-    fecha: new Date().toISOString().split("T")[0],
+    fecha: hoyStr,
     estado: "en-curso",
     distanciaKm: 920,
     duracionHoras: 12,
     inicio: new Date().toISOString(),
+
+    // datos logísticos
+    pesoKg: 18000,
+    volumenM3: 40,
+    camionesNecesarios: 1,
+  },
+  {
+    id: 2,
+    conductorId: 5,
+    camionId: "MC-santiago-2",
+    origen: "Santiago",
+    destino: "Región de Coquimbo",
+    fecha: hoyStr,
+    estado: "pendiente",
+    distanciaKm: 470,
+    duracionHoras: 6,
+    inicio: new Date().toISOString(),
+
+    pesoKg: 8000,
+    volumenM3: 20,
+    camionesNecesarios: 1,
   },
 ];
 
+// ========================================================
+// SOLICITUDES (BANDEJA LATERAL)
+// ========================================================
 export const SOLICITUDES = [
-  { id: 1, titulo: "Traslado urgente", fecha: "2025-11-21", estado: "nuevo",  destino: "Región de Valparaíso" },
-  { id: 2, titulo: "Carga refrigerada", fecha: "2025-11-22", estado: "nuevo",  destino: "Región de Atacama" },
-  { id: 3, titulo: "Despacho cadena logística", fecha: "2025-11-22", estado: "en-curso",  destino: "Región de Coquimbo" },
-  { id: 4, titulo: "Traslado interregional", fecha: "2025-11-23", estado: "completado", destino: "Región de Los Ríos" },
-  { id: 5, titulo: "Solicitud interna", fecha: "2025-11-24", estado: "en-curso",  destino: "Región de Los Lagos" },
+  {
+    id: 1,
+    titulo: "Traslado urgente retail",
+    fecha: "2025-11-21",
+    estado: "nuevo",
+    origen: "Santiago",
+    destino: "Región de Valparaíso",
+    pesoKg: 12000,
+    volumenM3: 25,
+  },
+  {
+    id: 2,
+    titulo: "Carga refrigerada alimentos",
+    fecha: "2025-11-22",
+    estado: "nuevo",
+    origen: "Osorno",
+    destino: "Región de Atacama",
+    pesoKg: 26000,
+    volumenM3: 50,
+  },
+  {
+    id: 3,
+    titulo: "Despacho cadena logística",
+    fecha: "2025-11-22",
+    estado: "en-curso",
+    origen: "Coquimbo",
+    destino: "Región de Coquimbo",
+    pesoKg: 8000,
+    volumenM3: 18,
+  },
+  {
+    id: 4,
+    titulo: "Traslado interregional minería",
+    fecha: "2025-11-23",
+    estado: "completado",
+    origen: "Santiago",
+    destino: "Región de Antofagasta",
+    pesoKg: 30000,
+    volumenM3: 55,
+  },
+  {
+    id: 5,
+    titulo: "Solicitud interna centros de distribución",
+    fecha: "2025-11-24",
+    estado: "en-curso",
+    origen: "Osorno",
+    destino: "Región de Los Lagos",
+    pesoKg: 6000,
+    volumenM3: 12,
+  },
 ];

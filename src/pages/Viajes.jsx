@@ -1,5 +1,8 @@
+// src/pages/Viajes.jsx
 import { useMemo, useState } from "react";
+import { estimateRoute } from "../utils/routeEstimator";
 import { getTripMetrics } from "../utils/tripMetrics";
+import { calcularCamionesNecesarios } from "../utils/capacity";
 
 const ESTADOS = ["todos", "pendiente", "en-curso", "completado"];
 
@@ -13,17 +16,16 @@ export function Viajes({
 }) {
   const [form, setForm] = useState({
     conductorId: "",
+    tipoCamion: "GC",
     origen: origenes[1]?.nombre || "Santiago",
     destino: "",
     distanciaKm: "",
     duracionHoras: "",
+    pesoKg: "",
+    volumenM3: "",
   });
   const [filtroEstado, setFiltroEstado] = useState("todos");
 
-  const [rutaLoading, setRutaLoading] = useState(false);
-  const [rutaError, setRutaError] = useState("");
-
-  // Solo conductores que NO están ocupados
   const conductoresDisponibles = useMemo(
     () => conductores.filter((c) => c.estado !== "ocupado"),
     [conductores]
@@ -34,54 +36,47 @@ export function Viajes({
     return viajes.filter((v) => v.estado === filtroEstado);
   }, [viajes, filtroEstado]);
 
-  const actualizarEstimacion = async (nuevoOrigen, nuevoDestino) => {
-    // Si falta algo, limpiamos la estimación
+  const actualizarEstimacion = (nuevoOrigen, nuevoDestino) => {
     if (!nuevoOrigen || !nuevoDestino) {
       setForm((f) => ({ ...f, distanciaKm: "", duracionHoras: "" }));
       return;
     }
-
-    setRutaLoading(true);
-    setRutaError("");
-    try {
-      const { distanciaKm, duracionHoras } = await obtenerRutaDesdeOSRM(
-        nuevoOrigen,
-        nuevoDestino
-      );
-
-      setForm((f) => ({
-        ...f,
-        distanciaKm: Number(distanciaKm.toFixed(1)),
-        duracionHoras: Number(duracionHoras.toFixed(1)),
-      }));
-    } catch (err) {
-      console.error(err);
-      setRutaError(
-        "No se pudo obtener la ruta en línea. Se usa una estimación básica."
-      );
-      const fallback = fallbackRoute(nuevoOrigen, nuevoDestino);
-      setForm((f) => ({
-        ...f,
-        distanciaKm: fallback.distanciaKm,
-        duracionHoras: fallback.duracionHoras,
-      }));
-    } finally {
-      setRutaLoading(false);
-    }
+    const { distanciaKm, duracionHoras } = estimateRoute(
+      nuevoOrigen,
+      nuevoDestino
+    );
+    setForm((f) => ({
+      ...f,
+      distanciaKm,
+      duracionHoras,
+    }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.conductorId || !form.origen || !form.destino) return;
-    onAdd(form);
+
+    const { camiones } = calcularCamionesNecesarios(
+      form.tipoCamion,
+      form.pesoKg,
+      form.volumenM3
+    );
+
+    onAdd({
+      ...form,
+      camionesNecesarios: camiones,
+    });
+
     setForm({
       conductorId: "",
+      tipoCamion: "GC",
       origen: origenes[1]?.nombre || "Santiago",
       destino: "",
       distanciaKm: "",
       duracionHoras: "",
+      pesoKg: "",
+      volumenM3: "",
     });
-    setRutaError("");
   };
 
   const getConductorName = (id) =>
@@ -95,7 +90,8 @@ export function Viajes({
             <span className="icon">🚚</span> Gestión de Viajes
           </h1>
           <p className="page-subtitle">
-            Registra nuevos viajes, controla su estado y visualiza su avance.
+            Registra nuevos viajes, valida capacidad de camión y controla su
+            avance.
           </p>
         </div>
       </div>
@@ -104,7 +100,7 @@ export function Viajes({
         <form className="card" onSubmit={handleSubmit}>
           <div className="card-header">
             <span>Registrar nuevo viaje</span>
-            <span className="tag tag-info">Estimación automática</span>
+            <span className="tag tag-info">Capacidad y ruta estimada</span>
           </div>
 
           <div className="grid-2" style={{ marginBottom: 10 }}>
@@ -113,9 +109,17 @@ export function Viajes({
               <select
                 className="select"
                 value={form.conductorId}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, conductorId: e.target.value }))
-                }
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const c = conductoresDisponibles.find(
+                    (x) => x.id === Number(id)
+                  );
+                  setForm((f) => ({
+                    ...f,
+                    conductorId: id,
+                    tipoCamion: c?.tipo || f.tipoCamion,
+                  }));
+                }}
               >
                 <option value="">Seleccione conductor</option>
                 {conductoresDisponibles.map((c) => (
@@ -125,6 +129,23 @@ export function Viajes({
                 ))}
               </select>
             </div>
+
+            <div>
+              <div className="label">Tipo de camión</div>
+              <select
+                className="select"
+                value={form.tipoCamion}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, tipoCamion: e.target.value }))
+                }
+              >
+                <option value="GC">GC · Gran Capacidad</option>
+                <option value="MC">MC · Mediana Capacidad</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid-2" style={{ marginBottom: 10 }}>
             <div>
               <div className="label">Origen</div>
               <select
@@ -143,9 +164,7 @@ export function Viajes({
                 ))}
               </select>
             </div>
-          </div>
 
-          <div className="grid-2" style={{ marginBottom: 10 }}>
             <div>
               <div className="label">Destino (Región)</div>
               <select
@@ -165,6 +184,36 @@ export function Viajes({
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="grid-2" style={{ marginBottom: 10 }}>
+            <div>
+              <div className="label">Peso total (kg)</div>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={form.pesoKg}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, pesoKg: e.target.value }))
+                }
+              />
+            </div>
+            <div>
+              <div className="label">Volumen total (m³)</div>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={form.volumenM3}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, volumenM3: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+
+          <div className="grid-2" style={{ marginBottom: 10 }}>
             <div>
               <div className="label">Distancia estimada (km)</div>
               <input
@@ -175,37 +224,37 @@ export function Viajes({
                 readOnly
               />
               <div className="helper-text">
-                {rutaLoading
-                  ? "Calculando ruta..."
-                  : "Calculado automáticamente según origen y región."}
+                Calculado automáticamente según origen y región.
               </div>
-              {rutaError && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "#f97373",
-                    marginTop: 4,
-                  }}
-                >
-                  {rutaError}
-                </div>
-              )}
+            </div>
+
+            <div>
+              <div className="label">Duración estimada (horas)</div>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.1"
+                value={form.duracionHoras}
+                readOnly
+              />
             </div>
           </div>
 
-          <div style={{ marginBottom: 10 }}>
-            <div className="label">Duración estimada (horas)</div>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.1"
-              value={form.duracionHoras}
-              readOnly
-            />
-          </div>
+          {form.pesoKg || form.volumenM3 ? (
+            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 10 }}>
+              {
+                calcularCamionesNecesarios(
+                  form.tipoCamion,
+                  form.pesoKg,
+                  form.volumenM3
+                ).camiones
+              }{" "}
+              camión(es) necesarios según capacidad seleccionada.
+            </div>
+          ) : null}
 
-          <button className="btn btn-primary" type="submit" disabled={rutaLoading}>
+          <button className="btn btn-primary" type="submit">
             ➕ Registrar viaje
           </button>
         </form>
@@ -246,6 +295,12 @@ export function Viajes({
                   Conductor: {getConductorName(v.conductorId)} · Fecha:{" "}
                   {v.fecha}
                 </div>
+                <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                  Tipo camión: {v.tipoCamion || "N/D"} · Carga:{" "}
+                  {v.pesoKg || 0} kg · {v.volumenM3 || 0} m³ · Camiones:{" "}
+                  {v.camionesNecesarios || 1}
+                </div>
+
                 {metrics && (
                   <div style={{ marginTop: 6 }}>
                     <div
@@ -303,57 +358,4 @@ export function Viajes({
       </div>
     </section>
   );
-}
-
-/* =========================================================
-   AUXILIARES: API PÚBLICA PARA RUTAS
-   ========================================================= */
-
-async function buscarCoordenadas(lugar) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
-    lugar + ", Chile"
-  )}`;
-
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "Corporativa-AcmeTrans/1.0 (viajes-page)",
-    },
-  });
-
-  const data = await res.json();
-  if (!data.length) throw new Error("No se encontraron coordenadas.");
-
-  return {
-    lat: parseFloat(data[0].lat),
-    lon: parseFloat(data[0].lon),
-  };
-}
-
-async function obtenerRutaDesdeOSRM(origen, destino) {
-  const coordOrigen = await buscarCoordenadas(origen);
-  const coordDestino = await buscarCoordenadas(destino);
-
-  const url = `https://router.project-osrm.org/route/v1/driving/${coordOrigen.lon},${coordOrigen.lat};${coordDestino.lon},${coordDestino.lat}?overview=false`;
-
-  const res = await fetch(url);
-  const data = await res.json();
-
-  if (!data.routes || !data.routes.length) {
-    throw new Error("No se pudo obtener ruta desde OSRM.");
-  }
-
-  const ruta = data.routes[0];
-
-  return {
-    distanciaKm: ruta.distance / 1000,
-    duracionHoras: ruta.duration / 3600,
-  };
-}
-
-function fallbackRoute(origen, destino) {
-  // Aquí podrías afinar según combinaciones conocidas; por ahora, algo genérico.
-  return {
-    distanciaKm: 300,
-    duracionHoras: 4,
-  };
 }

@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import "../Calendario.css";
 
-export function Calendario({ viajes = [], conductores = [] }) {
+export function Calendario({ viajes = [], conductores = [], onLiberarViaje }) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -23,10 +23,10 @@ export function Calendario({ viajes = [], conductores = [] }) {
     currentMonth.getMonth() + 1,
     0
   );
-  const startWeekday = firstDay.getDay(); // 0 = domingo
+  const startWeekday = firstDay.getDay();
   const daysInMonth = lastDay.getDate();
 
-  // --- Agrupar viajes por día del mes actual ---
+  // -------- AGRUPAR VIAJES POR DÍA --------
   const eventosPorDia = useMemo(() => {
     const map = {};
     viajes.forEach((v) => {
@@ -44,7 +44,6 @@ export function Calendario({ viajes = [], conductores = [] }) {
         conductores.find((c) => c.id === Number(v.conductorId))?.nombre ||
         "Sin asignar";
 
-      // Hospedaje si dura 4h o más
       const hospedaje = (v.duracionHoras || 0) >= 4;
 
       const inicio = v.inicio ? new Date(v.inicio) : null;
@@ -55,6 +54,7 @@ export function Calendario({ viajes = [], conductores = [] }) {
 
       const evento = {
         id: v.id,
+        conductorId: v.conductorId,
         conductor,
         origen: v.origen,
         destino: v.destino,
@@ -69,11 +69,7 @@ export function Calendario({ viajes = [], conductores = [] }) {
     return map;
   }, [viajes, conductores, currentMonth]);
 
-  // --- Celdas del calendario (huecos + días) ---
-  const celdas = [];
-  for (let i = 0; i < startWeekday; i++) celdas.push(null);
-  for (let day = 1; day <= daysInMonth; day++) celdas.push(day);
-
+  // -------- NAVEGACIÓN MESES --------
   const handlePrevMonth = () => {
     setCurrentMonth(
       (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
@@ -85,6 +81,22 @@ export function Calendario({ viajes = [], conductores = [] }) {
       (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
     );
   };
+
+  // -------- CLICK EN EVENTO → LIBERAR --------
+  const handleClickEvento = (ev) => {
+    const confirmar = window.confirm(
+      `¿Liberar al conductor ${ev.conductor} del viaje?\n\n` +
+        `Origen: ${ev.origen}\nDestino: ${ev.destino}\nHora: ${ev.hora}`
+    );
+    if (!confirmar) return;
+
+    if (onLiberarViaje) onLiberarViaje(ev.id, ev.conductorId);
+  };
+
+  // -------- CELDAS DEL CALENDARIO --------
+  const celdas = [];
+  for (let i = 0; i < startWeekday; i++) celdas.push(null);
+  for (let day = 1; day <= daysInMonth; day++) celdas.push(day);
 
   return (
     <section className="page">
@@ -131,6 +143,7 @@ export function Calendario({ viajes = [], conductores = [] }) {
             return (
               <div key={dateStr} className="calendar-cell">
                 <div className="calendar-day-number">{day}</div>
+
                 <div className="calendar-events">
                   {eventos.map((ev) => (
                     <div
@@ -139,9 +152,11 @@ export function Calendario({ viajes = [], conductores = [] }) {
                         "calendar-event" +
                         (ev.hospedaje ? " calendar-event-hospedaje" : "")
                       }
+                      onClick={() => handleClickEvento(ev)}
                       title={`${ev.conductor} · ${ev.origen} → ${
                         ev.destino
                       } · ${ev.hora} · ${ev.duracionHoras.toFixed(1)} h`}
+                      style={{ cursor: "pointer" }}
                     >
                       <div className="calendar-event-main">
                         <span className="calendar-event-time">{ev.hora}</span>
