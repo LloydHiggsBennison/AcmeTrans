@@ -8,6 +8,8 @@ export function EventDetailModal({
     onClose,
     onDelete,
     onEdit,
+    onDeleteViaje,
+    onEditViaje,
     onLiberarViaje,
 }) {
     if (!evento) return null;
@@ -38,7 +40,12 @@ export function EventDetailModal({
             return;
         }
 
-        onEdit?.(evento.id, formData);
+        // Llamar al handler correcto según el tipo
+        if (evento.tipo === "viaje") {
+            onEditViaje?.(evento.id, formData);
+        } else {
+            onEdit?.(evento.id, formData);
+        }
         setIsEditing(false);
         onClose?.();
     };
@@ -51,9 +58,12 @@ export function EventDetailModal({
     };
 
     const handleConfirmDelete = () => {
-        console.log('Delete confirmed, calling onDelete with:', evento.id);
-        if (onDelete) {
-            onDelete(evento.id);
+        console.log('Delete confirmed, calling delete handler with:', evento.id);
+        // Llamar al handler correcto según el tipo
+        if (evento.tipo === "viaje") {
+            onDeleteViaje?.(evento.id);
+        } else {
+            onDelete?.(evento.id);
         }
         if (onClose) {
             onClose();

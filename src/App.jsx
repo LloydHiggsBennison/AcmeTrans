@@ -140,12 +140,24 @@ export default function App() {
   };
 
   const handleUpdateViaje = (id, actualizado) => {
+    console.log('handleUpdateViaje called with:', id, actualizado);
     try {
       const updated = ViajeService.update(id, actualizado, viajes);
       setViajes((prev) => prev.map((v) => (v.id === id ? updated : v)));
       logger.info('Viaje updated successfully', { id });
     } catch (error) {
       const message = handleError(error, 'Actualizar viaje');
+      alert(message);
+    }
+  };
+
+  const handleEliminarViaje = (viajeId) => {
+    console.log('handleEliminarViaje called with:', viajeId);
+    try {
+      setViajes((prev) => prev.filter((v) => v.id !== viajeId));
+      logger.info('Viaje deleted successfully', { id: viajeId });
+    } catch (error) {
+      const message = handleError(error, 'Eliminar viaje');
       alert(message);
     }
   };
@@ -680,6 +692,8 @@ export default function App() {
         onLiberarViaje={handleLiberarViaje}
         onEliminarEvento={handleEliminarEventoCalendario}
         onEditarEvento={handleEditarEventoCalendario}
+        onEliminarViaje={handleEliminarViaje}
+        onEditarViaje={handleUpdateViaje}
       />
     );
   else if (active === "seguimiento")

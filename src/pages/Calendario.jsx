@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import "../Calendario.css";
 import { EventDetailModal } from "../components/EventDetailModal";
 
-export function Calendario({ viajes = [], conductores = [], eventosCalendario = [], onLiberarViaje, onEliminarEvento, onEditarEvento }) {
+export function Calendario({ viajes = [], conductores = [], eventosCalendario = [], onLiberarViaje, onEliminarEvento, onEditarEvento, onEliminarViaje, onEditarViaje }) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -83,6 +83,7 @@ export function Calendario({ viajes = [], conductores = [], eventosCalendario = 
             tipoCamion: v.tipoCamion || "N/D",
             fecha: v.fecha,
             fechaRetorno: v.fechaRetorno,
+            descripcion: v.descripcion || "",
             isMultiDay: v.fechaRetorno && v.fechaRetorno !== v.fecha,
           };
 
@@ -302,6 +303,8 @@ export function Calendario({ viajes = [], conductores = [], eventosCalendario = 
           onClose={() => setSelectedEvento(null)}
           onDelete={onEliminarEvento}
           onEdit={onEditarEvento}
+          onDeleteViaje={onEliminarViaje}
+          onEditViaje={onEditarViaje}
           onLiberarViaje={onLiberarViaje}
         />
       )}

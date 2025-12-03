@@ -19,6 +19,9 @@ export function Viajes({
     tipoCamion: "GC",
     origen: origenes[1]?.nombre || "Santiago",
     destino: "",
+    fecha: new Date().toISOString().split('T')[0],
+    fechaRetorno: "",
+    descripcion: "",
     distanciaKm: "",
     duracionHoras: "",
     pesoKg: "",
@@ -81,6 +84,9 @@ export function Viajes({
       tipoCamion: "GC",
       origen: origenes[1]?.nombre || "Santiago",
       destino: "",
+      fecha: new Date().toISOString().split('T')[0],
+      fechaRetorno: "",
+      descripcion: "",
       distanciaKm: "",
       duracionHoras: "",
       pesoKg: "",
@@ -193,6 +199,41 @@ export function Viajes({
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="grid-2" style={{ marginBottom: 10 }}>
+            <div>
+              <div className="label">Fecha de salida *</div>
+              <input
+                type="date"
+                className="input"
+                value={form.fecha}
+                onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))}
+                required
+              />
+            </div>
+            <div>
+              <div className="label">Fecha de retorno *</div>
+              <input
+                type="date"
+                className="input"
+                value={form.fechaRetorno}
+                onChange={(e) => setForm((f) => ({ ...f, fechaRetorno: e.target.value }))}
+                min={form.fecha}
+                required
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <div className="label">Descripción (opcional)</div>
+            <input
+              className="input"
+              type="text"
+              value={form.descripcion}
+              onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+              placeholder="Descripción del viaje..."
+            />
           </div>
 
           <div className="grid-2" style={{ marginBottom: 10 }}>

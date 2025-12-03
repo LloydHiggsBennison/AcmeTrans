@@ -234,6 +234,16 @@ export function validateViaje(viaje) {
         sanitized.fecha = new Date().toISOString().split('T')[0];
     }
 
+    // Fecha Retorno
+    if (viaje.fechaRetorno) {
+        sanitized.fechaRetorno = sanitizeString(viaje.fechaRetorno);
+    }
+
+    // Descripción
+    if (viaje.descripcion) {
+        sanitized.descripcion = sanitizeString(viaje.descripcion);
+    }
+
     // Estado
     if (viaje.estado) {
         const estado = viaje.estado.toLowerCase();
