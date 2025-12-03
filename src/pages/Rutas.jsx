@@ -172,25 +172,22 @@ export function Rutas({
       fechaEvento: fechaEstimada,
     };
 
-    onGenerarCotizacion(cotizacionData);
+    const eventoData = {
+      cotizacionId: null, // Se actualizará después de crear la cotización
+      solicitudId: null,
+      fecha: fechaEstimada,
+      fechaRetorno: fechaRetorno,
+      origen: resultado.origen,
+      destino: resultado.destino,
+      tipoCamion: resultado.tipoCamion,
+      conductorId: conductorId ? Number(conductorId) : null,
+      conductorNombre: conductorId ? "Por asignar" : "Sin asignar",
+      descripcion: `Ruta: ${resultado.origen} → ${resultado.destino}`,
+      tipo: "cotizacion",
+      estado: "pendiente",
+    };
 
-    // Crear evento de calendario
-    if (onCrearEventoCalendario) {
-      onCrearEventoCalendario({
-        cotizacionId: null, // Se actualizará después de crear la cotización
-        solicitudId: null,
-        fecha: fechaEstimada,
-        fechaRetorno: fechaRetorno,
-        origen: resultado.origen,
-        destino: resultado.destino,
-        tipoCamion: resultado.tipoCamion,
-        conductorId: conductorId ? Number(conductorId) : null,
-        conductorNombre: conductorId ? "Por asignar" : "Sin asignar",
-        descripcion: `Ruta: ${resultado.origen} → ${resultado.destino}`,
-        tipo: "cotizacion",
-        estado: "pendiente",
-      });
-    }
+    onGenerarCotizacion(cotizacionData, eventoData);
 
     setEnviadoADirector(true);
   };

@@ -41,10 +41,10 @@ Sistema corporativo de gestión de transporte y logística construido con **Reac
 
 ```bash
 # Clonar el repositorio
-git clone <repository-url>
+git clone https://github.com/LloydHiggsBennison/AcmeTrans
 
 # Navegar al directorio
-cd AcmeTrans-master
+cd corporativa-acmetrans
 
 # Instalar dependencias
 npm install

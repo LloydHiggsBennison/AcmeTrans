@@ -27,7 +27,16 @@ export function Viajes({
   const [filtroEstado, setFiltroEstado] = useState("todos");
 
   const conductoresDisponibles = useMemo(
-    () => conductores.filter((c) => c.estado !== "ocupado"),
+    () => {
+      const orden = { "Coquimbo": 1, "Santiago": 2, "Osorno": 3 };
+      return conductores
+        .filter((c) => c.estado !== "ocupado")
+        .sort((a, b) => {
+          const ordenA = orden[a.origen] || 999;
+          const ordenB = orden[b.origen] || 999;
+          return ordenA - ordenB;
+        });
+    },
     [conductores]
   );
 

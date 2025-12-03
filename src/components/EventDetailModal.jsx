@@ -8,6 +8,7 @@ export function EventDetailModal({
     onClose,
     onDelete,
     onEdit,
+    onLiberarViaje,
 }) {
     if (!evento) return null;
 
@@ -141,10 +142,26 @@ export function EventDetailModal({
                                 )}
                                 <div style={{ marginBottom: 8 }}>
                                     <strong>Estado:</strong>{" "}
-                                    <span className={`cotizacion-estado ${evento.estado}`}>
-                                        {evento.estado === "pendiente" ? "Pendiente" : evento.estado}
-                                    </span>
+                                    {evento.tipo === "viaje" ? (
+                                        <span className="cotizacion-estado aprobada">
+                                            En curso
+                                        </span>
+                                    ) : (
+                                        <span className={`cotizacion-estado ${evento.estado}`}>
+                                            {evento.estado === "pendiente" ? "Pendiente" : evento.estado}
+                                        </span>
+                                    )}
                                 </div>
+                                {evento.hora && evento.hora !== "—" && (
+                                    <div style={{ marginBottom: 8 }}>
+                                        <strong>Hora:</strong> {evento.hora}
+                                    </div>
+                                )}
+                                {evento.hospedaje && (
+                                    <div style={{ marginBottom: 8 }}>
+                                        <strong>Hospedaje:</strong> Sí
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ) : (
@@ -214,11 +231,19 @@ export function EventDetailModal({
                                             onChange={(e) => handleChange("conductorId", e.target.value)}
                                         >
                                             <option value="">Sin asignar</option>
-                                            {(conductores || []).filter(c => c.estado !== "inactivo").map((c) => (
-                                                <option key={c.id} value={c.id}>
-                                                    #{c.id} · {c.nombre}
-                                                </option>
-                                            ))}
+                                            {(conductores || [])
+                                                .filter(c => c.estado !== "inactivo")
+                                                .sort((a, b) => {
+                                                    const orden = { "Coquimbo": 1, "Santiago": 2, "Osorno": 3 };
+                                                    const ordenA = orden[a.origen] || 999;
+                                                    const ordenB = orden[b.origen] || 999;
+                                                    return ordenA - ordenB;
+                                                })
+                                                .map((c) => (
+                                                    <option key={c.id} value={c.id}>
+                                                        #{c.id} · {c.nombre}
+                                                    </option>
+                                                ))}
                                         </select>
                                     </div>
                                 </div>
@@ -277,9 +302,6 @@ export function EventDetailModal({
                 <div className="modal-footer">
                     {!isEditing ? (
                         <>
-                            <button className="btn btn-secondary" onClick={onClose}>
-                                Cerrar
-                            </button>
                             <button className="btn btn-ghost" onClick={() => setIsEditing(true)}>
                                 ✏️ Editar
                             </button>
@@ -294,6 +316,24 @@ export function EventDetailModal({
                             >
                                 🗑️ Eliminar
                             </button>
+                            {evento.tipo === "viaje" && evento.conductorId && onLiberarViaje && (
+                                <button
+                                    className="btn"
+                                    onClick={() => {
+                                        if (window.confirm(`¿Liberar al conductor ${conductorNombre} del viaje?`)) {
+                                            onLiberarViaje(evento.id, evento.conductorId);
+                                            onClose?.();
+                                        }
+                                    }}
+                                    style={{
+                                        backgroundColor: "#f59e0b",
+                                        color: "white",
+                                        border: "none"
+                                    }}
+                                >
+                                    🔓 Liberar Conductor
+                                </button>
+                            )}
                         </>
                     ) : (
                         <>

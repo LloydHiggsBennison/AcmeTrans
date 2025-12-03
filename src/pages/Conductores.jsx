@@ -17,8 +17,18 @@ export function Conductores({ conductores, onAdd, onUpdate, onAssignTrip }) {
   const [modalConductor, setModalConductor] = useState(null);
 
   const filtrados = useMemo(() => {
-    if (filtroEstado === "todos") return conductores;
-    return conductores.filter((c) => c.estado === filtroEstado);
+    const orden = { "Coquimbo": 1, "Santiago": 2, "Osorno": 3 };
+
+    let resultado = filtroEstado === "todos"
+      ? conductores
+      : conductores.filter((c) => c.estado === filtroEstado);
+
+    // Ordenar por origen: Coquimbo, Santiago, Osorno
+    return resultado.sort((a, b) => {
+      const ordenA = orden[a.origen] || 999;
+      const ordenB = orden[b.origen] || 999;
+      return ordenA - ordenB;
+    });
   }, [conductores, filtroEstado]);
 
   const handleSubmit = (e) => {
@@ -181,8 +191,8 @@ export function Conductores({ conductores, onAdd, onUpdate, onAssignTrip }) {
                   c.estado === "disponible"
                     ? "tag tag-success"
                     : c.estado === "ocupado"
-                    ? "tag tag-warning"
-                    : "tag tag-muted"
+                      ? "tag tag-warning"
+                      : "tag tag-muted"
                 }
               >
                 {c.estado}

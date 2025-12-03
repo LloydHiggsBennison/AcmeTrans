@@ -39,9 +39,14 @@ export function SolicitudModal({
     MC: { kg: 14000, m3: 30 },
   };
 
-  const conductoresDisponibles = conductores.filter(
-    (c) => c.estado !== "inactivo"
-  );
+  const orden = { "Coquimbo": 1, "Santiago": 2, "Osorno": 3 };
+  const conductoresDisponibles = conductores
+    .filter((c) => c.estado !== "inactivo")
+    .sort((a, b) => {
+      const ordenA = orden[a.origen] || 999;
+      const ordenB = orden[b.origen] || 999;
+      return ordenA - ordenB;
+    });
 
   const handleCalcular = () => {
     setError("");
@@ -151,29 +156,26 @@ export function SolicitudModal({
       fechaEvento: fechaAsignacion,
     };
 
-    onGenerarCotizacion(cotizacionData);
+    const conductorNombre = conductorId
+      ? conductores.find((c) => c.id === Number(conductorId))?.nombre || "Sin asignar"
+      : "Sin asignar";
 
-    // Crear evento de calendario
-    if (onCrearEventoCalendario) {
-      const conductorNombre = conductorId
-        ? conductores.find((c) => c.id === Number(conductorId))?.nombre || "Sin asignar"
-        : "Sin asignar";
+    const eventoData = {
+      cotizacionId: null, // Se actualizará en App.jsx después de crear la cotización
+      solicitudId: id,
+      fecha: fechaAsignacion,
+      fechaRetorno: fechaRetorno,
+      origen,
+      destino,
+      tipoCamion,
+      conductorId: conductorId ? Number(conductorId) : null,
+      conductorNombre,
+      descripcion: `Solicitud #${id}: ${origen} → ${destino}`,
+      tipo: "cotizacion",
+      estado: "pendiente",
+    };
 
-      onCrearEventoCalendario({
-        cotizacionId: null, // Se actualizará en App.jsx después de crear la cotización
-        solicitudId: id,
-        fecha: fechaAsignacion,
-        fechaRetorno: fechaRetorno,
-        origen,
-        destino,
-        tipoCamion,
-        conductorId: conductorId ? Number(conductorId) : null,
-        conductorNombre,
-        descripcion: `Solicitud #${id}: ${origen} → ${destino}`,
-        tipo: "cotizacion",
-        estado: "pendiente",
-      });
-    }
+    onGenerarCotizacion(cotizacionData, eventoData);
 
     // marcar solicitud en curso (o estado que quieras)
     onGestionar?.(id, { estado: "en-curso" });

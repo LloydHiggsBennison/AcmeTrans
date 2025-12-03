@@ -76,6 +76,9 @@ export default function App() {
 
   const [lastRoute, setLastRoute] = useState(null);
 
+  // Ref to prevent double-click on approve button
+  const [processingApproval, setProcessingApproval] = useState(false);
+
   const hoy = new Date().toISOString().split("T")[0];
 
   /****************************************************
@@ -272,6 +275,42 @@ export default function App() {
 
       auditLog.log('ASIGNAR_SOLICITUD', 'Solicitud', { solicitudId, conductorId });
       logger.info('Request assigned', { solicitudId, conductorId });
+
+      // Crear viaje automáticamente para que aparezca en el calendario
+      const nuevoViajeId = viajes.length > 0
+        ? Math.max(...viajes.map(v => v.id || 0)) + 1
+        : 1;
+
+      const nuevoViaje = {
+        id: nuevoViajeId,
+        conductorId: Number(conductorId),
+        camionId: null,
+        origen: "Santiago", // Valor por defecto si no viene en data (aunque debería venir en solicitud)
+        destino: "Destino", // Valor por defecto
+        fecha: fecha,
+        estado: ESTADOS.VIAJE.EN_CURSO,
+        distanciaKm: 0,
+        duracionHoras: 0,
+        inicio: new Date().toISOString(),
+        pesoKg: pesoKg || 0,
+        volumenM3: volumenM3 || 0,
+        camionesNecesarios: camionesNecesarios || 1,
+        cotizacionId: null,
+        solicitudId: solicitudId,
+        tipoCamion: tipoCamion || "GC",
+        // Intentar obtener origen/destino de la solicitud si es posible, 
+        // pero aquí solo tenemos IDs. Idealmente 'data' debería traer origen/destino.
+      };
+
+      // Buscar la solicitud para obtener origen/destino correctos
+      const solicitudOriginal = solicitudes.find(s => s.id === solicitudId);
+      if (solicitudOriginal) {
+        nuevoViaje.origen = solicitudOriginal.origen;
+        nuevoViaje.destino = solicitudOriginal.destino;
+      }
+
+      setViajes((prev) => [...prev, nuevoViaje]);
+
     } catch (error) {
       const message = handleError(error, 'Asignar solicitud');
       alert(message);
@@ -281,10 +320,13 @@ export default function App() {
   /****************************************************
    * COTIZACIONES (generadas desde los modales / rutas)
    ****************************************************/
-  const handleGenerarCotizacion = (cotizacionBase) => {
+  const handleGenerarCotizacion = (cotizacionBase, eventoData = null) => {
     try {
+      let nuevoId;
+
+      // Primero, crear la cotización y obtener su ID
       setCotizaciones((prev) => {
-        const nuevoId = prev.length
+        nuevoId = prev.length
           ? Math.max(...prev.map((c) => c.id || 0)) + 1
           : 1;
 
@@ -295,24 +337,36 @@ export default function App() {
           fechaCreacion: new Date().toISOString(),
         };
 
-        // Si la cotización viene con fechaEvento, actualizar el evento de calendario asociado
-        if (cotizacionBase.fechaEvento) {
-          // Buscar el último evento sin cotizacionId para esta solicitud
-          setEventosCalendario((prevEventos) =>
-            prevEventos.map((ev) => {
-              if (
-                ev.solicitudId === cotizacionBase.solicitudId &&
-                ev.cotizacionId === null
-              ) {
-                return { ...ev, cotizacionId: nuevoId };
-              }
-              return ev;
-            })
-          );
-        }
-
         return [...prev, cotizacion];
       });
+
+      // Luego, crear o actualizar el evento de calendario
+      if (eventoData) {
+        // Crear nuevo evento vinculado a la cotización
+        console.log('[App.jsx] Creating calendar event with data:', eventoData, 'cotizacionId:', nuevoId);
+        setEventosCalendario((prev) => {
+          const newEventId = prev.length ? Math.max(...prev.map(e => e.id || 0)) + 1 : 1;
+          return [...prev, {
+            ...eventoData,
+            id: newEventId,
+            cotizacionId: nuevoId,
+            fechaCreacion: new Date().toISOString()
+          }];
+        });
+      } else if (cotizacionBase.fechaEvento) {
+        // Buscar el último evento sin cotizacionId para esta solicitud (legacy fallback)
+        setEventosCalendario((prevEventos) =>
+          prevEventos.map((ev) => {
+            if (
+              ev.solicitudId === cotizacionBase.solicitudId &&
+              ev.cotizacionId === null
+            ) {
+              return { ...ev, cotizacionId: nuevoId };
+            }
+            return ev;
+          })
+        );
+      }
 
       auditLog.log('GENERAR_COTIZACION', 'Cotizacion', cotizacionBase);
       logger.info('Quote generated');
@@ -323,75 +377,99 @@ export default function App() {
   };
 
   const handleAprobarCotizacion = (cotizacionId) => {
+    // Prevent double-click
+    if (processingApproval) {
+      console.log('[App.jsx] Approval already in progress, ignoring duplicate click');
+      return;
+    }
+
+    setProcessingApproval(true);
+    console.log('[App.jsx] Starting approval for cotizacion:', cotizacionId);
+
     try {
-      setCotizaciones((prev) => {
-        const updated = prev.map((c) =>
+      // 1. Buscar el evento de calendario asociado ANTES de eliminarlo
+      const eventoAsociado = eventosCalendario.find(ev => ev.cotizacionId === cotizacionId);
+      console.log('[App.jsx] Found associated event:', eventoAsociado);
+
+      // 2. Encontrar la cotización para obtener sus datos
+      const aprobada = cotizaciones.find(c => c.id === cotizacionId);
+      if (!aprobada) {
+        console.error('[App.jsx] Quote not found:', cotizacionId);
+        return;
+      }
+
+      // 3. Actualizar estado de la cotización
+      setCotizaciones((prev) =>
+        prev.map((c) =>
           c.id === cotizacionId ? { ...c, estado: ESTADOS.COTIZACION.APROBADA } : c
+        )
+      );
+
+      // 4. Actualizar last route
+      setLastRoute({
+        origen: aprobada.origen,
+        destino: aprobada.destino,
+        distancia: aprobada.distanciaKm,
+        duracion: aprobada.duracionHoras,
+      });
+
+      // 5. Crear viaje UNA SOLA VEZ
+      const nuevoViajeId = viajes.length > 0
+        ? Math.max(...viajes.map(v => v.id || 0)) + 1
+        : 1;
+
+      const nuevoViaje = {
+        id: nuevoViajeId,
+        conductorId: aprobada.conductorId || null,
+        camionId: null,
+        origen: aprobada.origen,
+        destino: aprobada.destino,
+        fecha: aprobada.fechaEvento || new Date().toISOString().split('T')[0],
+        fechaRetorno: eventoAsociado?.fechaRetorno || null,
+        estado: ESTADOS.VIAJE.EN_CURSO,
+        distanciaKm: aprobada.distanciaKm,
+        duracionHoras: aprobada.duracionHoras,
+        inicio: new Date().toISOString(),
+        pesoKg: aprobada.pesoKg || 0,
+        volumenM3: aprobada.volumenM3 || 0,
+        camionesNecesarios: aprobada.camionesNecesarios || 1,
+        cotizacionId: cotizacionId,
+        solicitudId: aprobada.solicitudId || null,
+        tipoCamion: aprobada.tipoCamion || "GC",
+      };
+
+      console.log('[App.jsx] Creating viaje from approved quote (ONCE):', nuevoViaje);
+      setViajes((prevViajes) => [...prevViajes, nuevoViaje]);
+
+      // 6. Marcar conductor como ocupado si existe
+      if (aprobada.conductorId) {
+        setConductores((prevConductores) =>
+          prevConductores.map((c) =>
+            c.id === aprobada.conductorId
+              ? { ...c, estado: ESTADOS.CONDUCTOR.OCUPADO }
+              : c
+          )
         );
+      }
 
-        const aprobada = updated.find((c) => c.id === cotizacionId);
-        if (aprobada) {
-          setLastRoute({
-            origen: aprobada.origen,
-            destino: aprobada.destino,
-            distancia: aprobada.distanciaKm,
-            duracion: aprobada.duracionHoras,
-          });
+      // 7. Actualizar solicitud a completado si existe
+      if (aprobada.solicitudId) {
+        setSolicitudes((prevSolicitudes) =>
+          prevSolicitudes.map((s) =>
+            s.id === aprobada.solicitudId
+              ? { ...s, estado: ESTADOS.SOLICITUD.COMPLETADO }
+              : s
+          )
+        );
+      }
 
-          // Crear viaje automáticamente cuando se aprueba la cotización
-          const nuevoViajeId = viajes.length > 0
-            ? Math.max(...viajes.map(v => v.id || 0)) + 1
-            : 1;
-
-          const nuevoViaje = {
-            id: nuevoViajeId,
-            conductorId: aprobada.conductorId || null,
-            camionId: null, // Se puede asignar después
-            origen: aprobada.origen,
-            destino: aprobada.destino,
-            fecha: aprobada.fechaEvento || new Date().toISOString().split('T')[0],
-            estado: ESTADOS.VIAJE.EN_CURSO,
-            distanciaKm: aprobada.distanciaKm,
-            duracionHoras: aprobada.duracionHoras,
-            inicio: new Date().toISOString(), // Iniciar ahora
-            pesoKg: aprobada.pesoKg || 0,
-            volumenM3: aprobada.volumenM3 || 0,
-            camionesNecesarios: aprobada.camionesNecesarios || 1,
-            cotizacionId: cotizacionId,
-            solicitudId: aprobada.solicitudId || null,
-          };
-
-          setViajes((prevViajes) => [...prevViajes, nuevoViaje]);
-
-          // Si hay conductor asignado, marcarlo como ocupado
-          if (aprobada.conductorId) {
-            setConductores((prevConductores) =>
-              prevConductores.map((c) =>
-                c.id === aprobada.conductorId
-                  ? { ...c, estado: ESTADOS.CONDUCTOR.OCUPADO }
-                  : c
-              )
-            );
-          }
-
-          // Actualizar solicitud a completado si existe
-          if (aprobada.solicitudId) {
-            setSolicitudes((prevSolicitudes) =>
-              prevSolicitudes.map((s) =>
-                s.id === aprobada.solicitudId
-                  ? { ...s, estado: ESTADOS.SOLICITUD.COMPLETADO }
-                  : s
-              )
-            );
-          }
-
-          logger.info('Trip created from approved quote', {
-            viajeId: nuevoViajeId,
-            cotizacionId
-          });
-        }
-
-        return updated;
+      // Eliminar el evento del calendario asociado a esta cotización para evitar duplicados
+      // (ya que ahora existe como Viaje)
+      console.log('[App.jsx] Deleting calendar events for cotizacion:', cotizacionId);
+      setEventosCalendario((prev) => {
+        const filtered = prev.filter((ev) => ev.cotizacionId !== cotizacionId);
+        console.log('[App.jsx] Eventos before:', prev.length, 'after:', filtered.length);
+        return filtered;
       });
 
       auditLog.log('APROBAR_COTIZACION', 'Cotizacion', { cotizacionId });
@@ -399,6 +477,12 @@ export default function App() {
     } catch (error) {
       const message = handleError(error, 'Aprobar cotización');
       alert(message);
+    } finally {
+      // Reset the flag after a short delay
+      setTimeout(() => {
+        setProcessingApproval(false);
+        console.log('[App.jsx] Processing flag reset');
+      }, 1000);
     }
   };
 

@@ -37,14 +37,6 @@ export function Calendario({ viajes = [], conductores = [], eventosCalendario = 
     viajes.forEach((v) => {
       if (!v.fecha) return;
 
-      const d = new Date(v.fecha);
-      if (
-        d.getFullYear() !== currentMonth.getFullYear() ||
-        d.getMonth() !== currentMonth.getMonth()
-      ) {
-        return;
-      }
-
       const conductor =
         conductores.find((c) => c.id === Number(v.conductorId))?.nombre ||
         "Sin asignar";
@@ -57,21 +49,49 @@ export function Calendario({ viajes = [], conductores = [], eventosCalendario = 
           ? inicio.toTimeString().slice(0, 5)
           : "—";
 
-      const evento = {
-        id: v.id,
-        tipo: "viaje",
-        conductorId: v.conductorId,
-        conductor,
-        origen: v.origen,
-        destino: v.destino,
-        hora,
-        duracionHoras: v.duracionHoras || 0,
-        hospedaje,
-        tipoCamion: v.tipoCamion || "N/D",
+      // Parsear fechas como hora local
+      const parseLocalDate = (dateStr) => {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        return new Date(year, month - 1, day);
       };
 
-      if (!map[v.fecha]) map[v.fecha] = [];
-      map[v.fecha].push(evento);
+      const fechaInicio = parseLocalDate(v.fecha);
+      const fechaFin = v.fechaRetorno ? parseLocalDate(v.fechaRetorno) : fechaInicio;
+
+      // Generar viaje para cada día en el rango
+      const currentDate = new Date(fechaInicio);
+      while (currentDate <= fechaFin) {
+        // Solo agregar si está en el mes actual
+        if (
+          currentDate.getFullYear() === currentMonth.getFullYear() &&
+          currentDate.getMonth() === currentMonth.getMonth()
+        ) {
+          const dateStr = `${currentDate.getFullYear()}-${String(
+            currentDate.getMonth() + 1
+          ).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
+
+          const evento = {
+            id: v.id,
+            tipo: "viaje",
+            conductorId: v.conductorId,
+            conductor,
+            origen: v.origen,
+            destino: v.destino,
+            hora,
+            duracionHoras: v.duracionHoras || 0,
+            hospedaje,
+            tipoCamion: v.tipoCamion || "N/D",
+            fecha: v.fecha,
+            fechaRetorno: v.fechaRetorno,
+            isMultiDay: v.fechaRetorno && v.fechaRetorno !== v.fecha,
+          };
+
+          if (!map[dateStr]) map[dateStr] = [];
+          map[dateStr].push(evento);
+        }
+
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
     });
 
     // Agregar eventos de calendario
@@ -156,21 +176,10 @@ export function Calendario({ viajes = [], conductores = [], eventosCalendario = 
     );
   };
 
-  // -------- CLICK EN EVENTO → ABRIR MODAL O LIBERAR --------
+  // -------- CLICK EN EVENTO → ABRIR MODAL --------
   const handleClickEvento = (ev) => {
-    if (ev.tipo === "viaje") {
-      // Es un viaje en curso, ofrecer liberarlo
-      const confirmar = window.confirm(
-        `¿Liberar al conductor ${ev.conductor} del viaje?\n\n` +
-        `Origen: ${ev.origen}\nDestino: ${ev.destino}\nHora: ${ev.hora}`
-      );
-      if (!confirmar) return;
-
-      if (onLiberarViaje) onLiberarViaje(ev.id, ev.conductorId);
-    } else if (ev.tipo === "calendario") {
-      // Es un evento de calendario, abrir modal
-      setSelectedEvento(ev);
-    }
+    // Abrir modal de detalles para cualquier tipo de evento
+    setSelectedEvento(ev);
   };
 
   // -------- CELDAS DEL CALENDARIO --------
@@ -293,6 +302,7 @@ export function Calendario({ viajes = [], conductores = [], eventosCalendario = 
           onClose={() => setSelectedEvento(null)}
           onDelete={onEliminarEvento}
           onEdit={onEditarEvento}
+          onLiberarViaje={onLiberarViaje}
         />
       )}
     </section>
