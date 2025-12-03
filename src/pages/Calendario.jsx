@@ -1,12 +1,15 @@
 // src/pages/Calendario.jsx
 import { useMemo, useState } from "react";
 import "../Calendario.css";
+import { EventDetailModal } from "../components/EventDetailModal";
 
-export function Calendario({ viajes = [], conductores = [], onLiberarViaje }) {
+export function Calendario({ viajes = [], conductores = [], eventosCalendario = [], onLiberarViaje, onEliminarEvento, onEditarEvento }) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
+
+  const [selectedEvento, setSelectedEvento] = useState(null);
 
   const monthName = currentMonth.toLocaleString("es-CL", {
     month: "long",
@@ -26,9 +29,11 @@ export function Calendario({ viajes = [], conductores = [], onLiberarViaje }) {
   const startWeekday = firstDay.getDay();
   const daysInMonth = lastDay.getDate();
 
-  // -------- AGRUPAR VIAJES POR DÍA --------
+  // -------- AGRUPAR VIAJES Y EVENTOS POR DÍA --------
   const eventosPorDia = useMemo(() => {
     const map = {};
+
+    // Agregar viajes
     viajes.forEach((v) => {
       if (!v.fecha) return;
 
@@ -54,6 +59,7 @@ export function Calendario({ viajes = [], conductores = [], onLiberarViaje }) {
 
       const evento = {
         id: v.id,
+        tipo: "viaje",
         conductorId: v.conductorId,
         conductor,
         origen: v.origen,
@@ -61,13 +67,81 @@ export function Calendario({ viajes = [], conductores = [], onLiberarViaje }) {
         hora,
         duracionHoras: v.duracionHoras || 0,
         hospedaje,
+        tipoCamion: v.tipoCamion || "N/D",
       };
 
       if (!map[v.fecha]) map[v.fecha] = [];
       map[v.fecha].push(evento);
     });
+
+    // Agregar eventos de calendario
+    eventosCalendario.forEach((ev) => {
+      if (!ev.fecha) return;
+
+      const d = new Date(ev.fecha);
+      if (
+        d.getFullYear() !== currentMonth.getFullYear() ||
+        d.getMonth() !== currentMonth.getMonth()
+      ) {
+        return;
+      }
+
+      const conductorNombre = ev.conductorId
+        ? conductores.find((c) => c.id === Number(ev.conductorId))?.nombre || ev.conductorNombre || "Sin asignar"
+        : "Sin asignar";
+
+      // Calcular rango de fechas si tiene fechaRetorno
+      // Parsear fechas como hora local para evitar offset de zona horaria
+      const parseLocalDate = (dateStr) => {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        return new Date(year, month - 1, day);
+      };
+
+      const fechaInicio = parseLocalDate(ev.fecha);
+      const fechaFin = ev.fechaRetorno ? parseLocalDate(ev.fechaRetorno) : fechaInicio;
+
+      // Generar evento para cada día en el rango
+      const currentDate = new Date(fechaInicio);
+      while (currentDate <= fechaFin) {
+        const dateStr = `${currentDate.getFullYear()}-${String(
+          currentDate.getMonth() + 1
+        ).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
+
+        // Solo agregar si está en el mes actual
+        if (
+          currentDate.getFullYear() === currentMonth.getFullYear() &&
+          currentDate.getMonth() === currentMonth.getMonth()
+        ) {
+          const evento = {
+            id: ev.id,
+            tipo: "calendario",
+            cotizacionId: ev.cotizacionId,
+            solicitudId: ev.solicitudId,
+            conductorId: ev.conductorId,
+            conductor: conductorNombre,
+            origen: ev.origen || "N/D",
+            destino: ev.destino || "N/D",
+            hora: "—",
+            descripcion: ev.descripcion,
+            estado: ev.estado,
+            tipoCamion: ev.tipoCamion || "N/D",
+            hospedaje: false,
+            fecha: ev.fecha,
+            fechaRetorno: ev.fechaRetorno,
+            // Indicar si es multi-día
+            isMultiDay: ev.fechaRetorno && ev.fechaRetorno !== ev.fecha,
+          };
+
+          if (!map[dateStr]) map[dateStr] = [];
+          map[dateStr].push(evento);
+        }
+
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+    });
+
     return map;
-  }, [viajes, conductores, currentMonth]);
+  }, [viajes, eventosCalendario, conductores, currentMonth]);
 
   // -------- NAVEGACIÓN MESES --------
   const handlePrevMonth = () => {
@@ -82,15 +156,21 @@ export function Calendario({ viajes = [], conductores = [], onLiberarViaje }) {
     );
   };
 
-  // -------- CLICK EN EVENTO → LIBERAR --------
+  // -------- CLICK EN EVENTO → ABRIR MODAL O LIBERAR --------
   const handleClickEvento = (ev) => {
-    const confirmar = window.confirm(
-      `¿Liberar al conductor ${ev.conductor} del viaje?\n\n` +
+    if (ev.tipo === "viaje") {
+      // Es un viaje en curso, ofrecer liberarlo
+      const confirmar = window.confirm(
+        `¿Liberar al conductor ${ev.conductor} del viaje?\n\n` +
         `Origen: ${ev.origen}\nDestino: ${ev.destino}\nHora: ${ev.hora}`
-    );
-    if (!confirmar) return;
+      );
+      if (!confirmar) return;
 
-    if (onLiberarViaje) onLiberarViaje(ev.id, ev.conductorId);
+      if (onLiberarViaje) onLiberarViaje(ev.id, ev.conductorId);
+    } else if (ev.tipo === "calendario") {
+      // Es un evento de calendario, abrir modal
+      setSelectedEvento(ev);
+    }
   };
 
   // -------- CELDAS DEL CALENDARIO --------
@@ -145,31 +225,48 @@ export function Calendario({ viajes = [], conductores = [], onLiberarViaje }) {
                 <div className="calendar-day-number">{day}</div>
 
                 <div className="calendar-events">
-                  {eventos.map((ev) => (
-                    <div
-                      key={ev.id}
-                      className={
-                        "calendar-event" +
-                        (ev.hospedaje ? " calendar-event-hospedaje" : "")
+                  {eventos.map((ev) => {
+                    // Determinar clase CSS según tipo y estado
+                    let eventoClass = "calendar-event";
+                    if (ev.hospedaje) {
+                      eventoClass += " calendar-event-hospedaje";
+                    }
+                    if (ev.tipo === "calendario") {
+                      if (ev.estado === "pendiente") {
+                        eventoClass += " calendar-event-pendiente";
+                      } else if (ev.estado === "aprobada") {
+                        eventoClass += " calendar-event-aprobada";
                       }
-                      onClick={() => handleClickEvento(ev)}
-                      title={`${ev.conductor} · ${ev.origen} → ${
-                        ev.destino
-                      } · ${ev.hora} · ${ev.duracionHoras.toFixed(1)} h`}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <div className="calendar-event-main">
-                        <span className="calendar-event-time">{ev.hora}</span>
-                        <span className="calendar-event-text">
-                          {ev.conductor}
-                        </span>
+                    }
+
+                    const tipoLabel = ev.tipo === "viaje" ? "Viaje" : "Cotización";
+
+                    return (
+                      <div
+                        key={`${dateStr}-${ev.tipo}-${ev.id}`}
+                        className={eventoClass}
+                        onClick={() => handleClickEvento(ev)}
+                        title={`[${tipoLabel}] ${ev.conductor} · ${ev.origen} → ${ev.destino
+                          } · ${ev.hora} · ${ev.tipoCamion}${ev.tipo === "calendario"
+                            ? ` · ${ev.estado === "pendiente" ? "Pendiente" : "Aprobada"}`
+                            : ""
+                          }`}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <div className="calendar-event-main">
+                          <span className="calendar-event-time">{ev.hora}</span>
+                          <span className="calendar-event-text">
+                            {ev.conductor}
+                          </span>
+                        </div>
+                        <div className="calendar-event-sub">
+                          {ev.origen} → {ev.destino}
+                          {ev.hospedaje && " · Hospedaje"}
+                          {ev.tipo === "calendario" && ` · ${ev.tipoCamion}`}
+                        </div>
                       </div>
-                      <div className="calendar-event-sub">
-                        {ev.origen} → {ev.destino}
-                        {ev.hospedaje && " · Hospedaje"}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -180,9 +277,24 @@ export function Calendario({ viajes = [], conductores = [], onLiberarViaje }) {
           <span className="badge badge-normal" />
           <span>Viaje normal</span>
           <span className="badge badge-hospedaje" />
-          <span>Viaje con hospedaje (día completo)</span>
+          <span>Viaje con hospedaje</span>
+          <span className="badge badge-pendiente" />
+          <span>Cotización pendiente</span>
+          <span className="badge badge-aprobada" />
+          <span>Cotización aprobada</span>
         </div>
       </div>
+
+      {/* Modal de detalle de evento */}
+      {selectedEvento && (
+        <EventDetailModal
+          evento={selectedEvento}
+          conductores={conductores}
+          onClose={() => setSelectedEvento(null)}
+          onDelete={onEliminarEvento}
+          onEdit={onEditarEvento}
+        />
+      )}
     </section>
   );
 }

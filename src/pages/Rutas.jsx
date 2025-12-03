@@ -6,14 +6,19 @@ import { calcularCamionesNecesarios } from "../utils/capacity";
 export function Rutas({
   origenes,
   regiones,
+  conductores,
   onRouteCalculated,
-  onGenerarCotizacion, // 👈 NUEVO: para enviar al Director
+  onGenerarCotizacion,
+  onCrearEventoCalendario,
 }) {
   const [origen, setOrigen] = useState(origenes[1]?.nombre || "Santiago");
   const [destino, setDestino] = useState("");
   const [tipoCamion, setTipoCamion] = useState("GC");
   const [pesoKg, setPesoKg] = useState("");
   const [volumenM3, setVolumenM3] = useState("");
+  const [fechaEstimada, setFechaEstimada] = useState("");
+  const [fechaRetorno, setFechaRetorno] = useState("");
+  const [conductorId, setConductorId] = useState("");
 
   const [resultado, setResultado] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -136,7 +141,22 @@ export function Rutas({
   const handleEnviarADirector = () => {
     if (!resultado || !onGenerarCotizacion) return;
 
-    onGenerarCotizacion({
+    if (!fechaEstimada) {
+      alert("Debes seleccionar una fecha estimada para el viaje.");
+      return;
+    }
+
+    if (!fechaRetorno) {
+      alert("Debes seleccionar una fecha de retorno.");
+      return;
+    }
+
+    if (fechaRetorno < fechaEstimada) {
+      alert("La fecha de retorno debe ser posterior a la fecha de salida.");
+      return;
+    }
+
+    const cotizacionData = {
       solicitudId: null, // viene desde Rutas, no está ligada a una solicitud
       origen: resultado.origen,
       destino: resultado.destino,
@@ -148,8 +168,29 @@ export function Rutas({
       camionesNecesarios: resultado.camionesNecesarios,
       costoTotal: resultado.costoTotal,
       detalleCostos: resultado.detalleCostos,
-      conductorId: null,
-    });
+      conductorId: conductorId ? Number(conductorId) : null,
+      fechaEvento: fechaEstimada,
+    };
+
+    onGenerarCotizacion(cotizacionData);
+
+    // Crear evento de calendario
+    if (onCrearEventoCalendario) {
+      onCrearEventoCalendario({
+        cotizacionId: null, // Se actualizará después de crear la cotización
+        solicitudId: null,
+        fecha: fechaEstimada,
+        fechaRetorno: fechaRetorno,
+        origen: resultado.origen,
+        destino: resultado.destino,
+        tipoCamion: resultado.tipoCamion,
+        conductorId: conductorId ? Number(conductorId) : null,
+        conductorNombre: conductorId ? "Por asignar" : "Sin asignar",
+        descripcion: `Ruta: ${resultado.origen} → ${resultado.destino}`,
+        tipo: "cotizacion",
+        estado: "pendiente",
+      });
+    }
 
     setEnviadoADirector(true);
   };
@@ -241,6 +282,45 @@ export function Rutas({
               value={volumenM3}
               onChange={(e) => setVolumenM3(e.target.value)}
             />
+          </div>
+        </div>
+        <div className="grid-2" style={{ marginBottom: 10 }}>
+          <div>
+            <div className="label">Fecha de salida *</div>
+            <input
+              type="date"
+              className="input"
+              value={fechaEstimada}
+              onChange={(e) => setFechaEstimada(e.target.value)}
+            />
+          </div>
+          <div>
+            <div className="label">Fecha de retorno *</div>
+            <input
+              type="date"
+              className="input"
+              value={fechaRetorno}
+              onChange={(e) => setFechaRetorno(e.target.value)}
+              min={fechaEstimada}
+            />
+          </div>
+        </div>
+
+        <div className="grid-2" style={{ marginBottom: 10 }}>
+          <div>
+            <div className="label">Conductor (opcional)</div>
+            <select
+              className="select"
+              value={conductorId}
+              onChange={(e) => setConductorId(e.target.value)}
+            >
+              <option value="">Sin asignar</option>
+              {(conductores || []).filter(c => c.estado !== "inactivo").map((c) => (
+                <option key={c.id} value={c.id}>
+                  #{c.id} · {c.nombre} ({c.origen} · {c.tipo})
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

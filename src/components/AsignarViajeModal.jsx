@@ -29,11 +29,40 @@ export function AsignarViajeModal({ conductor, onClose, onSave }) {
   };
 
   return (
-    <div className="modal-backdrop">
+    <div className="modal-backdrop" onMouseDown={(e) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    }}>
       <div className="modal">
         <div className="modal-header">
           <h2>Asignar viaje a {conductor.nombre}</h2>
-          <button className="btn btn-soft" type="button" onClick={onClose}>
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#64748b",
+              fontSize: "20px",
+              cursor: "pointer",
+              padding: "4px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "32px",
+              height: "32px",
+              transition: "all 0.2s"
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "#334155";
+              e.target.style.color = "#f8fafc";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "transparent";
+              e.target.style.color = "#64748b";
+            }}
+          >
             ✕
           </button>
         </div>

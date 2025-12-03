@@ -7,11 +7,10 @@ const TABS = [
   { id: "viajes", label: "Viajes", emoji: "🚚" },
   { id: "seguimiento", label: "Seguimiento", emoji: "📍" },
   { id: "calendario", label: "Calendario", emoji: "📅" },
-  { id: "director", label: "Director", emoji: "🧾" },
   { id: "reportes", label: "Reportes", emoji: "📑" },
 ];
 
-export function Navbar({ active, onChange }) {
+export function Navbar({ active, onChange, userRole, userName, onLogout }) {
   return (
     <header className="navbar">
       <div className="navbar-left">
@@ -36,6 +35,22 @@ export function Navbar({ active, onChange }) {
           </button>
         ))}
       </nav>
+
+      <div className="navbar-right">
+        <div className="user-section">
+          <div className="user-avatar">
+            {userRole === 'director' ? '👔' : '👤'}
+          </div>
+          <div className="user-info">
+            <span className="user-name">{userName}</span>
+            <span className="user-role">{userRole === 'director' ? 'Director' : 'Usuario General'}</span>
+          </div>
+        </div>
+        <button className="btn-logout" onClick={onLogout} title="Cerrar sesión">
+          <span className="logout-icon">🚪</span>
+          <span>Salir</span>
+        </button>
+      </div>
     </header>
   );
 }

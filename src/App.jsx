@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useState } from "react";
+import { useState, lazy, Suspense, useEffect } from "react";
 import { Navbar } from "./components/Navbar.jsx";
 import { useLocalStorage } from "./hooks/useLocalStorage.js";
 import {
@@ -9,33 +9,68 @@ import {
   REGIONES_CHILE,
   SOLICITUDES,
 } from "./data/seed.js";
+import { Login } from "./pages/Login.jsx";
 
-import { Dashboard } from "./pages/Dashboard.jsx";
-import { Conductores } from "./pages/Conductores.jsx";
-import { Rutas } from "./pages/Rutas.jsx";
-import { Viajes } from "./pages/Viajes.jsx";
-import { Seguimiento } from "./pages/Seguimiento.jsx";
-import { Reportes } from "./pages/Reportes.jsx";
-import { Calendario } from "./pages/Calendario.jsx";
-import { Director } from "./pages/Director.jsx";
+// Services
+import { ConductorService } from "./services/conductorService.js";
+import { ViajeService } from "./services/viajeService.js";
+import { authService } from "./services/authService.js";
+import { logger, auditLog, handleError } from "./utils/errorHandler.js";
+import { ESTADOS } from "./config/constants.js";
+
+// Lazy load pages for code splitting
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx').then(m => ({ default: m.Dashboard })));
+const Conductores = lazy(() => import('./pages/Conductores.jsx').then(m => ({ default: m.Conductores })));
+const Rutas = lazy(() => import('./pages/Rutas.jsx').then(m => ({ default: m.Rutas })));
+const Viajes = lazy(() => import('./pages/Viajes.jsx').then(m => ({ default: m.Viajes })));
+const Seguimiento = lazy(() => import('./pages/Seguimiento.jsx').then(m => ({ default: m.Seguimiento })));
+const Reportes = lazy(() => import('./pages/Reportes.jsx').then(m => ({ default: m.Reportes })));
+const Calendario = lazy(() => import('./pages/Calendario.jsx').then(m => ({ default: m.Calendario })));
+const Director = lazy(() => import('./pages/Director.jsx').then(m => ({ default: m.Director })));
+
+// Loading component
+function LoadingFallback() {
+  return (
+    <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <p style={{ color: 'var(--muted)' }}>Cargando...</p>
+    </div>
+  );
+}
 
 export default function App() {
   const [active, setActive] = useState("dashboard");
 
+  // Authentication state
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const user = authService.getCurrentUser();
+    if (user) {
+      setCurrentUser(user);
+    }
+  }, []);
+
   const [conductores, setConductores] = useLocalStorage(
-    "ca_conductores",
+    "conductores",
     seedConductores
   );
-  const [viajes, setViajes] = useLocalStorage("ca_viajes", seedViajes);
+  const [viajes, setViajes] = useLocalStorage("viajes", seedViajes);
 
   const [solicitudes, setSolicitudes] = useLocalStorage(
-    "ca_solicitudes",
+    "solicitudes",
     SOLICITUDES
   );
 
   // Cotizaciones generadas desde los modales (pendientes/aprobadas/rechazadas)
   const [cotizaciones, setCotizaciones] = useLocalStorage(
-    "ca_cotizaciones",
+    "cotizaciones",
+    []
+  );
+
+  // Eventos de calendario generados desde cotizaciones
+  const [eventosCalendario, setEventosCalendario] = useLocalStorage(
+    "eventosCalendario",
     []
   );
 
@@ -44,104 +79,135 @@ export default function App() {
   const hoy = new Date().toISOString().split("T")[0];
 
   /****************************************************
-   * CONDUCTORES
+   * AUTHENTICATION HANDLERS
    ****************************************************/
-  const handleAddConductor = (nuevo) => {
-    setConductores((prev) => {
-      const id = prev.length ? Math.max(...prev.map((c) => c.id)) + 1 : 1;
-      return [...prev, { ...nuevo, id, estado: "disponible", bloqueos: [] }];
-    });
+  const handleLogin = (username, password) => {
+    const user = authService.login(username, password);
+    if (user) {
+      setCurrentUser(user);
+      return true;
+    }
+    return false;
   };
 
-  const handleUpdateConductor = (id, actualizado) => {
-    setConductores((prev) => prev.map((c) => (c.id === id ? actualizado : c)));
+  const handleLogout = () => {
+    authService.logout();
+    setCurrentUser(null);
+    setActive("dashboard");
   };
 
   /****************************************************
-   * VIAJES
+   * CONDUCTORES - Con validación y servicios
+   ****************************************************/
+  const handleAddConductor = (nuevo) => {
+    try {
+      const conductor = ConductorService.create(nuevo, conductores);
+      setConductores((prev) => [...prev, conductor]);
+      logger.info('Conductor added successfully', { id: conductor.id });
+    } catch (error) {
+      const message = handleError(error, 'Agregar conductor');
+      alert(message);
+    }
+  };
+
+  const handleUpdateConductor = (id, actualizado) => {
+    try {
+      const updated = ConductorService.update(id, actualizado, conductores);
+      setConductores((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      logger.info('Conductor updated successfully', { id });
+    } catch (error) {
+      const message = handleError(error, 'Actualizar conductor');
+      alert(message);
+    }
+  };
+
+
+  /****************************************************
+   * VIAJES - Con validación y servicios
    ****************************************************/
   const handleAddViaje = (nuevo) => {
-    setViajes((prev) => {
-      const id = prev.length ? Math.max(...prev.map((v) => v.id)) + 1 : 1;
-
-      return [
-        ...prev,
-        {
-          id,
-          conductorId: Number(nuevo.conductorId),
-          origen: nuevo.origen,
-          destino: nuevo.destino,
-          fecha: hoy,
-          estado: "pendiente",
-          distanciaKm: Number(nuevo.distanciaKm || 0),
-          duracionHoras: Number(nuevo.duracionHoras || 1),
-          inicio: new Date().toISOString(),
-          tipoCamion: nuevo.tipoCamion || "GC",
-          pesoKg: Number(nuevo.pesoKg || 0),
-          volumenM3: Number(nuevo.volumenM3 || 0),
-          camionesNecesarios: Number(nuevo.camionesNecesarios || 1),
-        },
-      ];
-    });
+    try {
+      const viaje = ViajeService.create(nuevo, viajes);
+      setViajes((prev) => [...prev, viaje]);
+      logger.info('Viaje added successfully', { id: viaje.id });
+    } catch (error) {
+      const message = handleError(error, 'Agregar viaje');
+      alert(message);
+    }
   };
 
   const handleUpdateViaje = (id, actualizado) => {
-    setViajes((prev) => prev.map((v) => (v.id === id ? actualizado : v)));
+    try {
+      const updated = ViajeService.update(id, actualizado, viajes);
+      setViajes((prev) => prev.map((v) => (v.id === id ? updated : v)));
+      logger.info('Viaje updated successfully', { id });
+    } catch (error) {
+      const message = handleError(error, 'Actualizar viaje');
+      alert(message);
+    }
   };
 
   // Asignar viaje rápido desde Conductores
   const handleAssignTrip = (conductorId, dataViaje) => {
-    setViajes((prev) => {
-      const id = prev.length ? Math.max(...prev.map((v) => v.id)) + 1 : 1;
+    try {
+      // Crear viaje con estado "en-curso"
+      const viajeData = {
+        ...dataViaje,
+        conductorId,
+        estado: ESTADOS.VIAJE.EN_CURSO,
+        fecha: hoy,
+      };
 
-      return [
-        ...prev,
-        {
-          id,
-          conductorId,
-          origen: dataViaje.origen,
-          destino: dataViaje.destino,
-          fecha: hoy,
-          estado: "en-curso",
-          distanciaKm: Number(dataViaje.distanciaKm || 0),
-          duracionHoras: Number(dataViaje.duracionHoras || 1),
-          inicio: new Date().toISOString(),
-          tipoCamion: dataViaje.tipoCamion || dataViaje.tipo || "GC",
-          pesoKg: Number(dataViaje.pesoKg || 0),
-          volumenM3: Number(dataViaje.volumenM3 || 0),
-          camionesNecesarios: Number(dataViaje.camionesNecesarios || 1),
-        },
-      ];
-    });
+      const viaje = ViajeService.create(viajeData, viajes);
+      setViajes((prev) => [...prev, viaje]);
 
-    // marcar conductor como ocupado
-    setConductores((prev) =>
-      prev.map((c) =>
-        c.id === conductorId ? { ...c, estado: "ocupado" } : c
-      )
-    );
+      // Marcar conductor como ocupado
+      setConductores((prev) =>
+        prev.map((c) =>
+          c.id === conductorId ? { ...c, estado: ESTADOS.CONDUCTOR.OCUPADO } : c
+        )
+      );
+
+      auditLog.log('ASSIGN_TRIP', 'Viaje', {
+        viajeId: viaje.id,
+        conductorId
+      });
+
+      logger.info('Trip assigned successfully', { viajeId: viaje.id, conductorId });
+    } catch (error) {
+      const message = handleError(error, 'Asignar viaje');
+      alert(message);
+    }
   };
 
   /****************************************************
    * LIBERAR VIAJE DESDE CALENDARIO
    ****************************************************/
   const handleLiberarViaje = (viajeId, conductorId) => {
-    // 1) quitar el viaje de la lista
-    const viajesRestantes = viajes.filter((v) => v.id !== viajeId);
-    setViajes(viajesRestantes);
+    try {
+      // 1) quitar el viaje de la lista
+      const viajesRestantes = viajes.filter((v) => v.id !== viajeId);
+      setViajes(viajesRestantes);
 
-    // 2) ver si el conductor aún tiene viajes en curso
-    const sigueConViajesEnCurso = viajesRestantes.some(
-      (v) => v.conductorId === conductorId && v.estado === "en-curso"
-    );
-
-    // 3) si ya no tiene, pasarlo a disponible
-    if (!sigueConViajesEnCurso) {
-      setConductores((prev) =>
-        prev.map((c) =>
-          c.id === conductorId ? { ...c, estado: "disponible" } : c
-        )
+      // 2) ver si el conductor aún tiene viajes en curso
+      const sigueConViajesEnCurso = viajesRestantes.some(
+        (v) => v.conductorId === conductorId && v.estado === ESTADOS.VIAJE.EN_CURSO
       );
+
+      // 3) si ya no tiene, pasarlo a disponible
+      if (!sigueConViajesEnCurso) {
+        setConductores((prev) =>
+          prev.map((c) =>
+            c.id === conductorId ? { ...c, estado: ESTADOS.CONDUCTOR.DISPONIBLE } : c
+          )
+        );
+      }
+
+      auditLog.log('LIBERAR_VIAJE', 'Viaje', { viajeId, conductorId });
+      logger.info('Trip released', { viajeId, conductorId });
+    } catch (error) {
+      const message = handleError(error, 'Liberar viaje');
+      alert(message);
     }
   };
 
@@ -149,12 +215,19 @@ export default function App() {
    * SOLICITUDES (bandeja lateral Dashboard)
    ****************************************************/
   const handleGestionarSolicitud = (id, data) => {
-    const nuevoEstado = data?.estado || "en-curso";
-    setSolicitudes((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, estado: nuevoEstado } : s
-      )
-    );
+    try {
+      const nuevoEstado = data?.estado || ESTADOS.SOLICITUD.EN_CURSO;
+      setSolicitudes((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, estado: nuevoEstado } : s
+        )
+      );
+
+      auditLog.log('GESTIONAR_SOLICITUD', 'Solicitud', { id, estado: nuevoEstado });
+    } catch (error) {
+      const message = handleError(error, 'Gestionar solicitud');
+      alert(message);
+    }
   };
 
   const handleAsignarSolicitud = ({
@@ -166,11 +239,12 @@ export default function App() {
     volumenM3,
     camionesNecesarios,
   }) => {
-    // Bloqueo en calendario del conductor (reserva)
-    setConductores((prev) =>
-      prev.map((c) =>
-        c.id === Number(conductorId)
-          ? {
+    try {
+      // Bloqueo en calendario del conductor (reserva)
+      setConductores((prev) =>
+        prev.map((c) =>
+          c.id === Number(conductorId)
+            ? {
               ...c,
               bloqueos: [
                 ...(c.bloqueos || []),
@@ -183,70 +257,281 @@ export default function App() {
                   camiones: camionesNecesarios,
                 },
               ],
-              estado: "ocupado",
+              estado: ESTADOS.CONDUCTOR.OCUPADO,
             }
-          : c
-      )
-    );
+            : c
+        )
+      );
 
-    // Marcar solicitud como en curso
-    setSolicitudes((prev) =>
-      prev.map((s) =>
-        s.id === solicitudId ? { ...s, estado: "en-curso" } : s
-      )
-    );
+      // Marcar solicitud como en curso
+      setSolicitudes((prev) =>
+        prev.map((s) =>
+          s.id === solicitudId ? { ...s, estado: ESTADOS.SOLICITUD.EN_CURSO } : s
+        )
+      );
+
+      auditLog.log('ASIGNAR_SOLICITUD', 'Solicitud', { solicitudId, conductorId });
+      logger.info('Request assigned', { solicitudId, conductorId });
+    } catch (error) {
+      const message = handleError(error, 'Asignar solicitud');
+      alert(message);
+    }
   };
 
   /****************************************************
    * COTIZACIONES (generadas desde los modales / rutas)
    ****************************************************/
   const handleGenerarCotizacion = (cotizacionBase) => {
-    setCotizaciones((prev) => {
-      const nuevoId = prev.length
-        ? Math.max(...prev.map((c) => c.id || 0)) + 1
-        : 1;
+    try {
+      setCotizaciones((prev) => {
+        const nuevoId = prev.length
+          ? Math.max(...prev.map((c) => c.id || 0)) + 1
+          : 1;
 
-      const cotizacion = {
-        ...cotizacionBase,
-        id: nuevoId,
-        estado: "pendiente",
-        fechaCreacion: new Date().toISOString(),
-      };
+        const cotizacion = {
+          ...cotizacionBase,
+          id: nuevoId,
+          estado: ESTADOS.COTIZACION.PENDIENTE,
+          fechaCreacion: new Date().toISOString(),
+        };
 
-      return [...prev, cotizacion];
-    });
+        // Si la cotización viene con fechaEvento, actualizar el evento de calendario asociado
+        if (cotizacionBase.fechaEvento) {
+          // Buscar el último evento sin cotizacionId para esta solicitud
+          setEventosCalendario((prevEventos) =>
+            prevEventos.map((ev) => {
+              if (
+                ev.solicitudId === cotizacionBase.solicitudId &&
+                ev.cotizacionId === null
+              ) {
+                return { ...ev, cotizacionId: nuevoId };
+              }
+              return ev;
+            })
+          );
+        }
+
+        return [...prev, cotizacion];
+      });
+
+      auditLog.log('GENERAR_COTIZACION', 'Cotizacion', cotizacionBase);
+      logger.info('Quote generated');
+    } catch (error) {
+      const message = handleError(error, 'Generar cotización');
+      alert(message);
+    }
   };
 
   const handleAprobarCotizacion = (cotizacionId) => {
-    setCotizaciones((prev) => {
-      const updated = prev.map((c) =>
-        c.id === cotizacionId ? { ...c, estado: "aprobada" } : c
-      );
+    try {
+      setCotizaciones((prev) => {
+        const updated = prev.map((c) =>
+          c.id === cotizacionId ? { ...c, estado: ESTADOS.COTIZACION.APROBADA } : c
+        );
 
-      const aprobada = updated.find((c) => c.id === cotizacionId);
-      if (aprobada) {
-        setLastRoute({
-          origen: aprobada.origen,
-          destino: aprobada.destino,
-          distancia: aprobada.distanciaKm,
-          duracion: aprobada.duracionHoras,
-        });
-      }
+        const aprobada = updated.find((c) => c.id === cotizacionId);
+        if (aprobada) {
+          setLastRoute({
+            origen: aprobada.origen,
+            destino: aprobada.destino,
+            distancia: aprobada.distanciaKm,
+            duracion: aprobada.duracionHoras,
+          });
 
-      return updated;
-    });
+          // Crear viaje automáticamente cuando se aprueba la cotización
+          const nuevoViajeId = viajes.length > 0
+            ? Math.max(...viajes.map(v => v.id || 0)) + 1
+            : 1;
 
-    // Aquí podrías también:
-    // - Crear un viaje en "viajes"
-    // - Generar el PDF en Director.jsx al momento de aprobar
+          const nuevoViaje = {
+            id: nuevoViajeId,
+            conductorId: aprobada.conductorId || null,
+            camionId: null, // Se puede asignar después
+            origen: aprobada.origen,
+            destino: aprobada.destino,
+            fecha: aprobada.fechaEvento || new Date().toISOString().split('T')[0],
+            estado: ESTADOS.VIAJE.EN_CURSO,
+            distanciaKm: aprobada.distanciaKm,
+            duracionHoras: aprobada.duracionHoras,
+            inicio: new Date().toISOString(), // Iniciar ahora
+            pesoKg: aprobada.pesoKg || 0,
+            volumenM3: aprobada.volumenM3 || 0,
+            camionesNecesarios: aprobada.camionesNecesarios || 1,
+            cotizacionId: cotizacionId,
+            solicitudId: aprobada.solicitudId || null,
+          };
+
+          setViajes((prevViajes) => [...prevViajes, nuevoViaje]);
+
+          // Si hay conductor asignado, marcarlo como ocupado
+          if (aprobada.conductorId) {
+            setConductores((prevConductores) =>
+              prevConductores.map((c) =>
+                c.id === aprobada.conductorId
+                  ? { ...c, estado: ESTADOS.CONDUCTOR.OCUPADO }
+                  : c
+              )
+            );
+          }
+
+          // Actualizar solicitud a completado si existe
+          if (aprobada.solicitudId) {
+            setSolicitudes((prevSolicitudes) =>
+              prevSolicitudes.map((s) =>
+                s.id === aprobada.solicitudId
+                  ? { ...s, estado: ESTADOS.SOLICITUD.COMPLETADO }
+                  : s
+              )
+            );
+          }
+
+          logger.info('Trip created from approved quote', {
+            viajeId: nuevoViajeId,
+            cotizacionId
+          });
+        }
+
+        return updated;
+      });
+
+      auditLog.log('APROBAR_COTIZACION', 'Cotizacion', { cotizacionId });
+      logger.info('Quote approved', { cotizacionId });
+    } catch (error) {
+      const message = handleError(error, 'Aprobar cotización');
+      alert(message);
+    }
   };
 
   const handleRechazarCotizacion = (cotizacionId) => {
-    setCotizaciones((prev) =>
-      prev.map((c) =>
-        c.id === cotizacionId ? { ...c, estado: "rechazada" } : c
-      )
-    );
+    try {
+      setCotizaciones((prev) =>
+        prev.map((c) =>
+          c.id === cotizacionId ? { ...c, estado: ESTADOS.COTIZACION.RECHAZADA } : c
+        )
+      );
+
+      // Eliminar evento del calendario asociado a esta cotización
+      setEventosCalendario((prev) =>
+        prev.filter((ev) => ev.cotizacionId !== cotizacionId)
+      );
+
+      auditLog.log('RECHAZAR_COTIZACION', 'Cotizacion', { cotizacionId });
+      logger.info('Quote rejected', { cotizacionId });
+    } catch (error) {
+      const message = handleError(error, 'Rechazar cotización');
+      alert(message);
+    }
+  };
+
+  /****************************************************
+   * EVENTOS DE CALENDARIO
+   ****************************************************/
+  const handleCrearEventoCalendario = (evento) => {
+    try {
+      setEventosCalendario((prev) => {
+        const nuevoId = prev.length
+          ? Math.max(...prev.map((e) => e.id || 0)) + 1
+          : 1;
+
+        const eventoCompleto = {
+          ...evento,
+          id: nuevoId,
+          fechaCreacion: new Date().toISOString(),
+        };
+
+        return [...prev, eventoCompleto];
+      });
+
+      auditLog.log('CREAR_EVENTO_CALENDARIO', 'EventoCalendario', evento);
+      logger.info('Calendar event created');
+    } catch (error) {
+      const message = handleError(error, 'Crear evento de calendario');
+      alert(message);
+    }
+  };
+
+  const handleEliminarEventoCalendario = (eventoId) => {
+    try {
+      // Encontrar el evento para obtener la cotización asociada
+      const evento = eventosCalendario.find(ev => ev.id === eventoId);
+
+      // Si el evento tiene una cotización asociada, rechazarla
+      if (evento && evento.cotizacionId) {
+        setCotizaciones((prev) =>
+          prev.map((c) =>
+            c.id === evento.cotizacionId
+              ? { ...c, estado: ESTADOS.COTIZACION.RECHAZADA }
+              : c
+          )
+        );
+        logger.info('Quote rejected due to calendar event deletion', {
+          cotizacionId: evento.cotizacionId,
+          eventoId
+        });
+      }
+
+      // Eliminar el evento del calendario
+      setEventosCalendario((prev) =>
+        prev.filter((ev) => ev.id !== eventoId)
+      );
+
+      auditLog.log('ELIMINAR_EVENTO_CALENDARIO', 'EventoCalendario', { eventoId });
+      logger.info('Calendar event deleted', { eventoId });
+    } catch (error) {
+      const message = handleError(error, 'Eliminar evento de calendario');
+      alert(message);
+    }
+  };
+
+  const handleEditarCotizacion = (cotizacionId, datosActualizados) => {
+    try {
+      setCotizaciones((prev) =>
+        prev.map((c) =>
+          c.id === cotizacionId ? { ...c, ...datosActualizados } : c
+        )
+      );
+
+      // Actualizar evento de calendario asociado si existe
+      setEventosCalendario((prev) =>
+        prev.map((ev) => {
+          if (ev.cotizacionId === cotizacionId) {
+            return {
+              ...ev,
+              origen: datosActualizados.origen || ev.origen,
+              destino: datosActualizados.destino || ev.destino,
+              tipoCamion: datosActualizados.tipoCamion || ev.tipoCamion,
+              conductorId: datosActualizados.conductorId !== undefined
+                ? datosActualizados.conductorId
+                : ev.conductorId,
+              fecha: datosActualizados.fechaEvento || ev.fecha,
+            };
+          }
+          return ev;
+        })
+      );
+
+      auditLog.log('EDITAR_COTIZACION', 'Cotizacion', { cotizacionId, datosActualizados });
+      logger.info('Quote edited', { cotizacionId });
+    } catch (error) {
+      const message = handleError(error, 'Editar cotización');
+      alert(message);
+    }
+  };
+
+  const handleEditarEventoCalendario = (eventoId, datosActualizados) => {
+    try {
+      setEventosCalendario((prev) =>
+        prev.map((ev) =>
+          ev.id === eventoId ? { ...ev, ...datosActualizados } : ev
+        )
+      );
+
+      auditLog.log('EDITAR_EVENTO_CALENDARIO', 'EventoCalendario', { eventoId, datosActualizados });
+      logger.info('Calendar event edited', { eventoId });
+    } catch (error) {
+      const message = handleError(error, 'Editar evento de calendario');
+      alert(message);
+    }
   };
 
   /****************************************************
@@ -260,9 +545,15 @@ export default function App() {
         conductores={conductores}
         viajes={viajes}
         solicitudes={solicitudes}
+        cotizaciones={cotizaciones}
+        userRole={currentUser?.role}
         onGestionarSolicitud={handleGestionarSolicitud}
         onAsignarSolicitud={handleAsignarSolicitud}
         onGenerarCotizacion={handleGenerarCotizacion}
+        onCrearEventoCalendario={handleCrearEventoCalendario}
+        onAprobar={handleAprobarCotizacion}
+        onRechazar={handleRechazarCotizacion}
+        onEditar={handleEditarCotizacion}
       />
     );
   else if (active === "conductores")
@@ -290,8 +581,10 @@ export default function App() {
       <Rutas
         origenes={ORIGENES}
         regiones={REGIONES_CHILE}
+        conductores={conductores}
         onRouteCalculated={setLastRoute}
         onGenerarCotizacion={handleGenerarCotizacion}
+        onCrearEventoCalendario={handleCrearEventoCalendario}
       />
     );
   else if (active === "calendario")
@@ -299,7 +592,10 @@ export default function App() {
       <Calendario
         viajes={viajes}
         conductores={conductores}
+        eventosCalendario={eventosCalendario}
         onLiberarViaje={handleLiberarViaje}
+        onEliminarEvento={handleEliminarEventoCalendario}
+        onEditarEvento={handleEditarEventoCalendario}
       />
     );
   else if (active === "seguimiento")
@@ -310,15 +606,30 @@ export default function App() {
     page = (
       <Director
         cotizaciones={cotizaciones}
+        conductores={conductores}
         onAprobar={handleAprobarCotizacion}
         onRechazar={handleRechazarCotizacion}
+        onEditar={handleEditarCotizacion}
       />
     );
 
+  // Show login page if not authenticated
+  if (!currentUser) {
+    return <Login onLogin={handleLogin} />;
+  }
+
   return (
     <div className="app-shell">
-      <Navbar active={active} onChange={setActive} />
-      {page}
+      <Navbar
+        active={active}
+        onChange={setActive}
+        userRole={currentUser?.role}
+        userName={currentUser?.nombre}
+        onLogout={handleLogout}
+      />
+      <Suspense fallback={<LoadingFallback />}>
+        {page}
+      </Suspense>
     </div>
   );
 }

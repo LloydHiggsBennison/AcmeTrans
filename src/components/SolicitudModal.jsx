@@ -10,6 +10,7 @@ export function SolicitudModal({
   onGestionar,
   onAsignar,
   onGenerarCotizacion,
+  onCrearEventoCalendario,
 }) {
   if (!solicitud) return null;
 
@@ -19,6 +20,7 @@ export function SolicitudModal({
     origen,
     destino,
     fecha,
+    fechaRetorno: fechaRetornoInicial,
     pesoKg = 0,
     volumenM3 = 0,
     estado,
@@ -26,6 +28,7 @@ export function SolicitudModal({
 
   const [conductorId, setConductorId] = useState("");
   const [fechaAsignacion, setFechaAsignacion] = useState(fecha || "");
+  const [fechaRetorno, setFechaRetorno] = useState(fechaRetornoInicial || "");
   const [tipoCamion, setTipoCamion] = useState("GC");
   const [cotizacion, setCotizacion] = useState(null);
   const [error, setError] = useState("");
@@ -112,12 +115,27 @@ export function SolicitudModal({
       return;
     }
 
+    if (!fechaAsignacion) {
+      setError("Debes seleccionar una fecha para la asignación.");
+      return;
+    }
+
+    if (!fechaRetorno) {
+      setError("Debes seleccionar una fecha de retorno.");
+      return;
+    }
+
+    if (fechaRetorno < fechaAsignacion) {
+      setError("La fecha de retorno debe ser posterior a la fecha de salida.");
+      return;
+    }
+
     if (!onGenerarCotizacion) {
       setError("No se ha configurado el flujo de cotizaciones.");
       return;
     }
 
-    onGenerarCotizacion({
+    const cotizacionData = {
       solicitudId: id,
       origen,
       destino,
@@ -130,7 +148,32 @@ export function SolicitudModal({
       costoTotal: cotizacion.costos.total,
       detalleCostos: cotizacion.costos,
       conductorId: conductorId ? Number(conductorId) : null,
-    });
+      fechaEvento: fechaAsignacion,
+    };
+
+    onGenerarCotizacion(cotizacionData);
+
+    // Crear evento de calendario
+    if (onCrearEventoCalendario) {
+      const conductorNombre = conductorId
+        ? conductores.find((c) => c.id === Number(conductorId))?.nombre || "Sin asignar"
+        : "Sin asignar";
+
+      onCrearEventoCalendario({
+        cotizacionId: null, // Se actualizará en App.jsx después de crear la cotización
+        solicitudId: id,
+        fecha: fechaAsignacion,
+        fechaRetorno: fechaRetorno,
+        origen,
+        destino,
+        tipoCamion,
+        conductorId: conductorId ? Number(conductorId) : null,
+        conductorNombre,
+        descripcion: `Solicitud #${id}: ${origen} → ${destino}`,
+        tipo: "cotizacion",
+        estado: "pendiente",
+      });
+    }
 
     // marcar solicitud en curso (o estado que quieras)
     onGestionar?.(id, { estado: "en-curso" });
@@ -164,14 +207,43 @@ export function SolicitudModal({
   };
 
   return (
-    <div className="modal-backdrop">
+    <div className="modal-backdrop" onMouseDown={(e) => {
+      if (e.target === e.currentTarget) {
+        onClose?.();
+      }
+    }}>
       <div className="modal">
         <div className="modal-header">
           <h2>
             📨 Solicitud #{id}{" "}
             {titulo ? `· ${titulo}` : ""}
           </h2>
-          <button className="modal-close" onClick={onClose}>
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#64748b",
+              fontSize: "20px",
+              cursor: "pointer",
+              padding: "4px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "32px",
+              height: "32px",
+              transition: "all 0.2s"
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "#334155";
+              e.target.style.color = "#f8fafc";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "transparent";
+              e.target.style.color = "#64748b";
+            }}
+          >
             ✕
           </button>
         </div>
@@ -200,6 +272,7 @@ export function SolicitudModal({
           </div>
 
           {/* Configuración de viaje / camión */}
+          {/* Fila 1: Conductor y Tipo de Camión */}
           <div className="grid-2" style={{ marginBottom: 12 }}>
             <div>
               <div className="label">Conductor</div>
@@ -217,18 +290,6 @@ export function SolicitudModal({
               </select>
             </div>
             <div>
-              <div className="label">Fecha de asignación</div>
-              <input
-                type="date"
-                className="input"
-                value={fechaAsignacion}
-                onChange={(e) => setFechaAsignacion(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid-2" style={{ marginBottom: 12 }}>
-            <div>
               <div className="label">Tipo de camión</div>
               <select
                 className="select"
@@ -238,22 +299,47 @@ export function SolicitudModal({
                 <option value="GC">GC · Gran Capacidad</option>
                 <option value="MC">MC · Mediana Capacidad</option>
               </select>
-              <div className="helper-text">
-                Se calcula automáticamente cuántos camiones se requieren según
-                peso y volumen.
-              </div>
             </div>
+          </div>
 
+          {/* Fila 2: Fechas */}
+          <div className="grid-2" style={{ marginBottom: 12 }}>
             <div>
-              <div className="label">Acciones de cálculo</div>
-              <button
-                className="btn btn-primary"
-                type="button"
-                onClick={handleCalcular}
-              >
-                🧮 Calcular ruta y cotización
-              </button>
+              <div className="label">Fecha de salida *</div>
+              <input
+                type="date"
+                className="input"
+                value={fechaAsignacion}
+                onChange={(e) => setFechaAsignacion(e.target.value)}
+              />
             </div>
+            <div>
+              <div className="label">Fecha de retorno *</div>
+              <input
+                type="date"
+                className="input"
+                value={fechaRetorno}
+                onChange={(e) => setFechaRetorno(e.target.value)}
+                min={fechaAsignacion}
+              />
+            </div>
+          </div>
+
+          <div className="helper-text" style={{ marginBottom: 12, marginTop: -8 }}>
+            ℹ️ El tipo de camión se calcula automáticamente según peso/volumen.
+          </div>
+
+          {/* Fila 3: Botón de cálculo */}
+          <div style={{ marginBottom: 12 }}>
+            <div className="label">Acciones de cálculo</div>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={handleCalcular}
+              style={{ width: "100%" }}
+            >
+              🧮 Calcular ruta y cotización
+            </button>
           </div>
 
           {cotizacion && (
@@ -295,14 +381,12 @@ export function SolicitudModal({
           )}
         </div>
 
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>
-            Cancelar
-          </button>
+        <div className="modal-footer" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <button
             className="btn btn-ghost"
             type="button"
             onClick={handleAsignarViaje}
+            style={{ justifyContent: "center" }}
           >
             📌 Asignar viaje
           </button>
@@ -310,8 +394,9 @@ export function SolicitudModal({
             className="btn btn-primary"
             type="button"
             onClick={handleEnviarADirector}
+            style={{ justifyContent: "center" }}
           >
-            🧾 Enviar a Director (cotización)
+            🧾 Enviar a Director
           </button>
         </div>
       </div>

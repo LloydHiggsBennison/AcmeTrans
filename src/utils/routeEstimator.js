@@ -1,3 +1,13 @@
+/**
+ * Estimador de rutas y distancias
+ * Clasificación de regiones y cálculo de distancias aproximadas
+ * @module utils/routeEstimator
+ */
+
+import { sanitizeString, sanitizeNumber } from './security.js';
+import { LIMITS } from '../config/constants.js';
+import { logger } from './errorHandler.js';
+
 // Clasificamos las regiones de Chile en zonas para aproximar distancias.
 const ZONA_REGION = {
   "Región de Arica y Parinacota": "norte",
@@ -47,17 +57,71 @@ const BASE_DIST = {
   },
 };
 
+/**
+ * Estima la ruta entre origen y destino
+ * @param {string} origen - Ciudad de origen
+ * @param {string} destinoRegion - Región de destino
+ * @returns {Object} { distanciaKm, duracionHoras }
+ */
 export function estimateRoute(origen, destinoRegion) {
+  // Validar y sanitizar inputs
   if (!origen || !destinoRegion) {
+    logger.warn('estimateRoute: Missing origen or destino');
     return { distanciaKm: 0, duracionHoras: 0 };
   }
 
-  const zona = ZONA_REGION[destinoRegion] || "centro";
-  const origenKey = origen in BASE_DIST ? origen : "Santiago";
+  const origenClean = sanitizeString(origen);
+  const destinoClean = sanitizeString(destinoRegion);
+
+  // Obtener zona del destino
+  const zona = ZONA_REGION[destinoClean] || "centro";
+
+  // Determinar origen válido
+  const origenKey = origenClean in BASE_DIST ? origenClean : "Santiago";
+
+  // Obtener distancia base
   const base = BASE_DIST[origenKey][zona] ?? 500;
 
-  const distanciaKm = base;
-  const duracionHoras = +(base / 80).toFixed(1); // 80 km/h promedio
+  // Calcular distancia y duración
+  const distanciaKm = Math.min(base, LIMITS.DISTANCIA_MAX);
+  const duracionHoras = Math.min(
+    +(distanciaKm / 80).toFixed(1), // 80 km/h promedio
+    LIMITS.DURACION_MAX
+  );
+
+  logger.debug('Route estimated', {
+    origen: origenKey,
+    destino: destinoClean,
+    distanciaKm,
+    duracionHoras
+  });
 
   return { distanciaKm, duracionHoras };
 }
+
+/**
+ * Verifica si una región es válida
+ * @param {string} region - Región a verificar
+ * @returns {boolean} true si es válida
+ */
+export function isValidRegion(region) {
+  if (!region || typeof region !== 'string') return false;
+  return region in ZONA_REGION;
+}
+
+/**
+ * Obtiene todas las regiones disponibles
+ * @returns {string[]} Lista de regiones
+ */
+export function getAvailableRegions() {
+  return Object.keys(ZONA_REGION);
+}
+
+/**
+ * Obtiene todos los orígenes disponibles
+ * @returns {string[]} Lista de orígenes
+ */
+export function getAvailableOrigins() {
+  return Object.keys(BASE_DIST);
+}
+

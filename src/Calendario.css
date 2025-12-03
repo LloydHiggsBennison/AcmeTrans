@@ -104,6 +104,20 @@
   border-left: 3px solid #fbbf24;
 }
 
+/* Evento de calendario pendiente */
+.calendar-event-pendiente {
+  background: #713f12;
+  border-left: 3px solid #fbbf24;
+  color: #fef3c7;
+}
+
+/* Evento de calendario aprobada */
+.calendar-event-aprobada {
+  background: #14532d;
+  border-left: 3px solid #22c55e;
+  color: #dcfce7;
+}
+
 .calendar-event-main {
   display: flex;
   justify-content: space-between;
@@ -122,6 +136,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
+  flex-wrap: wrap;
 }
 
 .badge {
@@ -137,4 +152,12 @@
 
 .badge-hospedaje {
   background: #78350f;
+}
+
+.badge-pendiente {
+  background: #713f12;
+}
+
+.badge-aprobada {
+  background: #14532d;
 }

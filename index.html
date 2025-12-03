@@ -2,11 +2,51 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <title>Corporativa AcmeTrans</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Security Headers -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    
+    <!-- Content Security Policy -->
+    <meta 
+      http-equiv="Content-Security-Policy" 
+      content="default-src 'self'; 
+               script-src 'self' 'unsafe-inline' 'unsafe-eval'; 
+               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
+               font-src 'self' https://fonts.gstatic.com; 
+               img-src 'self' data: https:; 
+               connect-src 'self' https://router.project-osrm.org https://nominatim.openstreetmap.org; 
+               frame-ancestors 'none';
+               base-uri 'self';
+               form-action 'self';" 
+    />
+    
+    <!-- SEO Meta Tags -->
+    <title>AcmeTrans - Sistema de Gestión de Transporte</title>
+    <meta name="description" content="Sistema corporativo de gestión de transporte y logística de AcmeTrans. Gestiona conductores, viajes, rutas y cotizaciones de forma eficiente." />
+    <meta name="keywords" content="transporte, logística, gestión, acmetrans, viajes, conductores" />
+    <meta name="author" content="AcmeTrans" />
+    <meta name="robots" content="noindex, nofollow" />
+    
+    <!-- Viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    
+    <!-- Performance: Preconnect to external domains -->
+    <link rel="preconnect" href="https://router.project-osrm.org" crossorigin="anonymous" />
+    <link rel="preconnect" href="https://nominatim.openstreetmap.org" crossorigin="anonymous" />
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#050816" />
+    
+    <!-- Application Info -->
+    <meta name="application-name" content="AcmeTrans" />
+    <meta name="version" content="1.0.0" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
+
