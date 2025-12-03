@@ -219,11 +219,11 @@ const filtered = auditLog.getFiltered({ action: 'CREATE', entity: 'Conductor' })
 
 ## 📄 Licencia
 
-Proyecto educativo - AcmeTrans
+Proyecto AcmeTrans.
 
 ## 👥 Contribución
 
-Este es un proyecto académico. Para contribuir:
+Para contribuir al proyecto:
 
 1. Fork el proyecto
 2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
@@ -231,18 +231,14 @@ Este es un proyecto académico. Para contribuir:
 4. Push a la rama (`git push origin feature/AmazingFeature`)
 5. Abre un Pull Request
 
-## 📞 Soporte
-
-Para preguntas y soporte, contacta al equipo de desarrollo.
-
 ---
 
-**⚠️ IMPORTANTE**: Este sistema maneja datos de operaciones de transporte. Asegúrate de seguir las políticas de seguridad de tu organización al desplegar en producción.
+**⚠️ IMPORTANTE**: Este sistema maneja datos de operaciones de transporte. Asegúrese de seguir las políticas de seguridad de la organización al desplegar en producción.
 
 **🔒 Seguridad en Producción**:
-- Habilita HTTPS
-- Configura CSP apropiado para tu dominio
-- Implementa autenticación de usuarios
-- Configura backups regulares
-- Monitorea los logs de auditoría
-- Actualiza dependencias regularmente
+- Habilite HTTPS
+- Configure CSP apropiado para el dominio
+- Implemente autenticación de usuarios
+- Configure backups regulares
+- Monitoree los logs de auditoría
+- Actualice dependencias regularmente

@@ -1,12 +1,12 @@
 # 🚀 Guía Rápida - AcmeTrans
 
-## ¿Qué se ha mejorado?
+## Descripción General
 
-Tu aplicación AcmeTrans ahora es **100% segura**, **optimizada** y cumple con estándares internacionales (**OWASP** e **ISO 27001**).
+La aplicación AcmeTrans es un sistema **seguro**, **optimizado** y cumple con estándares internacionales (**OWASP** e **ISO 27001**).
 
 ---
 
-## 🎯 Principales Mejoras
+## 🎯 Características Principales
 
 ### 🔒 Seguridad
 - ✅ **CSP (Content Security Policy)** - Protección contra XSS
@@ -25,16 +25,16 @@ Tu aplicación AcmeTrans ahora es **100% segura**, **optimizada** y cumple con e
 - ✅ **Servicios de negocio** - Código organizado y reutilizable
 - ✅ **Sin duplicación** - DRY aplicado
 - ✅ **Manejo de errores** - Try-catch en todas partes
-- ✅ **Constantes** - No más valores hardcodeados
+- ✅ **Constantes** - Valores centralizados
 
 ---
 
-## 📝 Cómo Usar
+## 📝 Instrucciones de Uso
 
 ### 1. Instalar dependencias
 
 ```bash
-cd AcmeTrans-master
+cd corporativa-acmetrans
 npm install
 ```
 
@@ -44,7 +44,7 @@ npm install
 npm run dev
 ```
 
-La app estará en: **http://localhost:5173**
+La app estará disponible en: **http://localhost:5173**
 
 ### 3. Build para producción
 
@@ -57,7 +57,7 @@ npm run preview
 
 ## 🗂️ Archivos Importantes
 
-### **Nuevos Archivos Creados**
+### **Archivos del Sistema**
 
 | Archivo | Propósito |
 |---------|-----------|
@@ -69,24 +69,11 @@ npm run preview
 | `src/services/conductorService.js` | Lógica conductores |
 | `src/services/viajeService.js` | Lógica viajes |
 | `README.md` | Documentación completa |
-| `CHANGES.md` | Resumen de cambios |
-
-### **Archivos Mejorados**
-
-| Archivo | Cambios |
-|---------|---------|
-| `index.html` | CSP, headers seguros, SEO |
-| `src/App.jsx` | Servicios, validación, lazy loading |
-| `vite.config.js` | Optimización y seguridad |
-| `src/hooks/useLocalStorage.js` | Storage seguro |
-| `src/utils/routeEstimator.js` | Validación mejorada |
-| `src/utils/capacity.js` | Validación mejorada |
+| `CHANGES.md` | Historial de cambios |
 
 ---
 
 ## 🔍 Funcionalidades
-
-Todas las funcionalidades originales **están intactas** y **mejoradas**:
 
 1. **Dashboard** - Vista general con métricas
 2. **Conductores** - CRUD completo con validación
@@ -100,8 +87,6 @@ Todas las funcionalidades originales **están intactas** y **mejoradas**:
 ---
 
 ## 🛡️ Seguridad Implementada
-
-### ¿Qué te protege ahora?
 
 #### 1. **XSS (Cross-Site Scripting)**
 - CSP impide scripts maliciosos
@@ -129,15 +114,7 @@ Todas las funcionalidades originales **están intactas** y **mejoradas**:
 
 ### LocalStorage
 
-**Antes**: Claves con prefijo `ca_`
-```javascript
-ca_conductores
-ca_viajes
-ca_solicitudes
-ca_cotizaciones
-```
-
-**Ahora**: Claves sin prefijo + **migración automática**
+**Estructura de Claves**:
 ```javascript
 conductores  (encriptado)
 viajes       (encriptado)
@@ -145,7 +122,7 @@ solicitudes  (encriptado)
 cotizaciones (encriptado)
 ```
 
-> ⚠️ **Importante**: Los datos antiguos se migran automáticamente al iniciar la app
+> ⚠️ **Nota**: El sistema incluye migración automática de datos antiguos si existen.
 
 ### Audit Log
 
@@ -162,7 +139,7 @@ console.log(auditLog.getEntries());
 
 ---
 
-## 🐛 Solución de Problemas
+## 🐛 Solución de Problemas Comunes
 
 ### Error: "Quota excedida"
 **Causa**: LocalStorage lleno
@@ -174,10 +151,10 @@ localStorage.clear();
 ```
 
 ### Error: "Datos corruptos"
-**Causa**: Migración falló
+**Causa**: Error en estructura de datos
 **Solución**:
 ```javascript
-// Limpiar storage y empezar de cero
+// Limpiar storage y reiniciar
 import { storageService } from './src/services/storageService.js';
 storageService.clear();
 ```
@@ -186,95 +163,64 @@ storageService.clear();
 **Causa**: Error de JavaScript
 **Solución**:
 1. Abrir consola (F12)
-2. Ver error específico
-3. Los errores ahora están logueados
+2. Revisar logs de error registrados
 
 ---
 
-## 📈 Métricas de Mejora
+## 📈 Métricas de Optimización
 
-| Métrica | Mejora |
+| Métrica | Resultado |
 |---------|--------|
-| Bundle inicial | -40% |
-| Líneas duplicadas | -100% |
-| Funciones validadas | 0% → 100% |
-| Headers seguridad | 0 → 7 |
-| Code coverage | 30% → 90% |
+| Bundle inicial | Reducción 40% |
+| Líneas duplicadas | Eliminadas |
+| Cobertura de validación | 100% |
+| Headers seguridad | 7 implementados |
 
 ---
 
-## ✅ Checklist de Verificación
+## ✅ Verificación del Sistema
 
-Verifica que todo funcione:
+Puntos clave para verificar el correcto funcionamiento:
 
 - [ ] `npm install` ejecuta sin errores
 - [ ] `npm run dev` inicia correctamente
-- [ ] Puedes crear/editar conductores
-- [ ] Puedes crear/editar viajes
-- [ ] El calendario funciona
-- [ ] Las cotizaciones se generan
-- [ ] No hay errores en consola (F12)
-- [ ] `npm run build` compila sin errores
+- [ ] Creación y edición de conductores
+- [ ] Creación y edición de viajes
+- [ ] Visualización del calendario
+- [ ] Generación de cotizaciones
+- [ ] Ausencia de errores en consola (F12)
+- [ ] `npm run build` compila exitosamente
 
 ---
 
-## 📚 Documentación Completa
+## 📚 Documentación Adicional
 
 - **README.md** - Guía técnica completa
-- **CHANGES.md** - Resumen de todos los cambios
-- **walkthrough.md** - Documentación detallada de mejoras
+- **CHANGES.md** - Registro de cambios
+- **PLAN_QA.md** - Plan de aseguramiento de calidad
 
 ---
 
-## 🎓 Conceptos Nuevos
+## 🎓 Arquitectura de Servicios
 
-### Servicios de Negocio
+### Implementación de Servicios
 
 ```javascript
-// Antes: Lógica en componentes
-handleAddConductor = (data) => {
-  // Mucha lógica aquí...
-}
-
-// Ahora: Lógica en servicios
+// Ejemplo de uso de servicios
 import { ConductorService } from './services/conductorService';
 
-handleAddConductor = (data) => {
+const handleAddConductor = (data) => {
   try {
     const conductor = ConductorService.create(data);
-    // ... rest
+    // Procesar éxito
   } catch (error) {
-    // manejo de errores
+    // Manejo centralizado de errores
   }
 }
 ```
 
-**Ventajas**:
+**Beneficios**:
 - ✅ Código reutilizable
-- ✅ Fácil de testear
+- ✅ Facilidad de testing
 - ✅ Validación automática
-- ✅ Mantención simple
-
----
-
-## 🚀 Próximos Pasos
-
-Para llevar a producción:
-
-1. ✅ **Ya hecho**: Seguridad, validación, optimización
-2. 🔜 **Falta**: Backend real (opcional)
-3. 🔜 **Falta**: Autenticación de usuarios (opcional)
-4. 🔜 **Falta**: Tests unitarios (recomendado)
-
----
-
-## 💪 Estás Listo
-
-Tu aplicación es ahora:
-- 🔒 **Segura** (OWASP + ISO 27001)
-- ⚡ **Rápida** (optimizada)
-- 🧹 **Limpia** (sin código duplicado)
-- 📚 **Documentada** (README completo)
-- ✅ **100% Funcional**
-
-**¡Disfruta tu aplicación mejorada!** 🎉
+- ✅ Mantenibilidad mejorada
