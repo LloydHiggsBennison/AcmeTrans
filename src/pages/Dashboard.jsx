@@ -4,6 +4,7 @@ import "../Dashboard.css";
 import { exportarCotizacionesExcel } from "../utils/excelExport";
 import { SolicitudModal } from "../components/SolicitudModal";
 import { useTripProgress } from "../hooks/useTripProgress";
+import { useNotification } from "../context/NotificationContext";
 
 function SolicitudItem({ solicitud, onClick }) {
   const getStatusClass = (estado) => {
@@ -67,6 +68,7 @@ export function Dashboard({
   const [estadoExport, setEstadoExport] = useState("todas");
   const [editando, setEditando] = useState(null);
   const [formData, setFormData] = useState({});
+  const { showNotification } = useNotification();
 
   const conductoresActivos = conductores.filter((c) => c.estado === "activo").length;
 
@@ -108,9 +110,9 @@ export function Dashboard({
     });
 
     if (result.success) {
-      alert(`✅ Archivo exportado: ${result.nombreArchivo}\nRegistros: ${result.total}`);
+      showNotification(`✅ Archivo exportado: ${result.nombreArchivo}\nRegistros: ${result.total}`);
     } else {
-      alert(`❌ Error: ${result.error}`);
+      showNotification(`❌ Error: ${result.error}`);
     }
   };
 

@@ -1,6 +1,7 @@
 // src/pages/Director.jsx
 import { useState } from "react";
 import { exportarCotizacionesExcel } from "../utils/excelExport";
+import { useNotification } from "../context/NotificationContext";
 
 export function Director({ cotizaciones, conductores = [], onAprobar, onRechazar, onEditar }) {
   const [filtro, setFiltro] = useState("todas");
@@ -9,6 +10,7 @@ export function Director({ cotizaciones, conductores = [], onAprobar, onRechazar
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [estadoExport, setEstadoExport] = useState("todas");
+  const { showNotification } = useNotification();
 
   const filtradas =
     filtro === "todas"
@@ -102,9 +104,9 @@ export function Director({ cotizaciones, conductores = [], onAprobar, onRechazar
     });
 
     if (result.success) {
-      alert(`✅ Archivo exportado exitosamente: ${result.nombreArchivo}\n\nTotal de registros: ${result.total}`);
+      showNotification(`✅ Archivo exportado exitosamente: ${result.nombreArchivo}\n\nTotal de registros: ${result.total}`);
     } else {
-      alert(`❌ Error al exportar: ${result.error}`);
+      showNotification(`❌ Error al exportar: ${result.error}`);
     }
   };
 

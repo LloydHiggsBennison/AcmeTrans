@@ -1,5 +1,6 @@
 import { useState } from "react";
 import jsPDF from "jspdf";
+import { useNotification } from "../context/NotificationContext";
 
 const TIPOS = [
   "Rendimiento Conductores",
@@ -12,10 +13,11 @@ export function Reportes({ conductores, viajes }) {
   const [inicio, setInicio] = useState("");
   const [fin, setFin] = useState("");
   const [tipo, setTipo] = useState(TIPOS[0]);
+  const { showNotification } = useNotification();
 
   const handleGenerar = () => {
     if (!inicio || !fin) {
-      alert("Debe seleccionar rango de fechas.");
+      showNotification("Debe seleccionar rango de fechas.");
       return;
     }
 

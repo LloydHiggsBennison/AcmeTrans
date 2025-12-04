@@ -10,6 +10,7 @@ import {
   SOLICITUDES,
 } from "./data/seed.js";
 import { Login } from "./pages/Login.jsx";
+import { useNotification } from "./context/NotificationContext.jsx";
 
 // Services
 import { ConductorService } from "./services/conductorService.js";
@@ -39,6 +40,7 @@ function LoadingFallback() {
 
 export default function App() {
   const [active, setActive] = useState("dashboard");
+  const { showNotification } = useNotification();
 
   // Authentication state
   const [currentUser, setCurrentUser] = useState(null);
@@ -109,7 +111,7 @@ export default function App() {
       logger.info('Conductor added successfully', { id: conductor.id });
     } catch (error) {
       const message = handleError(error, 'Agregar conductor');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -120,7 +122,7 @@ export default function App() {
       logger.info('Conductor updated successfully', { id });
     } catch (error) {
       const message = handleError(error, 'Actualizar conductor');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -135,7 +137,7 @@ export default function App() {
       logger.info('Viaje added successfully', { id: viaje.id });
     } catch (error) {
       const message = handleError(error, 'Agregar viaje');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -147,7 +149,7 @@ export default function App() {
       logger.info('Viaje updated successfully', { id });
     } catch (error) {
       const message = handleError(error, 'Actualizar viaje');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -156,9 +158,10 @@ export default function App() {
     try {
       setViajes((prev) => prev.filter((v) => v.id !== viajeId));
       logger.info('Viaje deleted successfully', { id: viajeId });
+      showNotification("Viaje eliminado y conductor liberado");
     } catch (error) {
       const message = handleError(error, 'Eliminar viaje');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -191,7 +194,7 @@ export default function App() {
       logger.info('Trip assigned successfully', { viajeId: viaje.id, conductorId });
     } catch (error) {
       const message = handleError(error, 'Asignar viaje');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -220,9 +223,10 @@ export default function App() {
 
       auditLog.log('LIBERAR_VIAJE', 'Viaje', { viajeId, conductorId });
       logger.info('Trip released', { viajeId, conductorId });
+      showNotification("Conductor liberado correctamente");
     } catch (error) {
       const message = handleError(error, 'Liberar viaje');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -241,7 +245,7 @@ export default function App() {
       auditLog.log('GESTIONAR_SOLICITUD', 'Solicitud', { id, estado: nuevoEstado });
     } catch (error) {
       const message = handleError(error, 'Gestionar solicitud');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -325,7 +329,7 @@ export default function App() {
 
     } catch (error) {
       const message = handleError(error, 'Asignar solicitud');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -384,7 +388,7 @@ export default function App() {
       logger.info('Quote generated');
     } catch (error) {
       const message = handleError(error, 'Generar cotización');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -480,15 +484,15 @@ export default function App() {
       console.log('[App.jsx] Deleting calendar events for cotizacion:', cotizacionId);
       setEventosCalendario((prev) => {
         const filtered = prev.filter((ev) => ev.cotizacionId !== cotizacionId);
-        console.log('[App.jsx] Eventos before:', prev.length, 'after:', filtered.length);
         return filtered;
       });
 
       auditLog.log('APROBAR_COTIZACION', 'Cotizacion', { cotizacionId });
       logger.info('Quote approved', { cotizacionId });
+      showNotification("La propuesta ha sido enviada al cliente", "success");
     } catch (error) {
       const message = handleError(error, 'Aprobar cotización');
-      alert(message);
+      showNotification(message, "error");
     } finally {
       // Reset the flag after a short delay
       setTimeout(() => {
@@ -515,7 +519,7 @@ export default function App() {
       logger.info('Quote rejected', { cotizacionId });
     } catch (error) {
       const message = handleError(error, 'Rechazar cotización');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -542,7 +546,7 @@ export default function App() {
       logger.info('Calendar event created');
     } catch (error) {
       const message = handleError(error, 'Crear evento de calendario');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -573,9 +577,10 @@ export default function App() {
 
       auditLog.log('ELIMINAR_EVENTO_CALENDARIO', 'EventoCalendario', { eventoId });
       logger.info('Calendar event deleted', { eventoId });
+      showNotification("Evento eliminado y conductor liberado");
     } catch (error) {
       const message = handleError(error, 'Eliminar evento de calendario');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -610,7 +615,7 @@ export default function App() {
       logger.info('Quote edited', { cotizacionId });
     } catch (error) {
       const message = handleError(error, 'Editar cotización');
-      alert(message);
+      showNotification(message);
     }
   };
 
@@ -626,7 +631,7 @@ export default function App() {
       logger.info('Calendar event edited', { eventoId });
     } catch (error) {
       const message = handleError(error, 'Editar evento de calendario');
-      alert(message);
+      showNotification(message);
     }
   };
 

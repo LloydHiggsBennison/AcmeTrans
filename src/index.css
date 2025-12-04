@@ -299,6 +299,31 @@ body {
   box-shadow: 0 14px 32px rgba(59, 130, 246, 0.6);
 }
 
+.btn-secondary {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-secondary:hover {
+  background: rgba(239, 68, 68, 0.2);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+  transform: translateY(-1px);
+  color: #fef2f2;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.btn-ghost:hover {
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
 .btn-soft {
   background: rgba(15, 23, 42, 0.9);
 }

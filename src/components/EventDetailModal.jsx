@@ -1,6 +1,7 @@
 // src/components/EventDetailModal.jsx
 
 import { useState } from "react";
+import { useNotification } from "../context/NotificationContext";
 
 export function EventDetailModal({
     evento,
@@ -24,6 +25,7 @@ export function EventDetailModal({
         conductorId: evento.conductorId || "",
         descripcion: evento.descripcion || "",
     });
+    const { showNotification } = useNotification();
 
     const handleChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -31,12 +33,12 @@ export function EventDetailModal({
 
     const handleSave = () => {
         if (!formData.fecha || !formData.fechaRetorno) {
-            alert("Las fechas de salida y retorno son obligatorias");
+            showNotification("Las fechas de salida y retorno son obligatorias");
             return;
         }
 
         if (formData.fechaRetorno < formData.fecha) {
-            alert("La fecha de retorno debe ser posterior a la fecha de salida");
+            showNotification("La fecha de retorno debe ser posterior a la fecha de salida");
             return;
         }
 
@@ -73,6 +75,17 @@ export function EventDetailModal({
     const handleCancelDelete = () => {
         console.log('Delete cancelled');
         setShowDeleteConfirm(false);
+    };
+
+    const [showLiberarConfirm, setShowLiberarConfirm] = useState(false);
+
+    const handleLiberarClick = () => {
+        setShowLiberarConfirm(true);
+    };
+
+    const handleConfirmLiberar = () => {
+        onLiberarViaje(evento.id, evento.conductorId);
+        onClose?.();
     };
 
     const conductorNombre = evento.conductorId
@@ -309,6 +322,43 @@ export function EventDetailModal({
                     </div>
                 )}
 
+                {showLiberarConfirm && (
+                    <div style={{
+                        backgroundColor: "#fef3c7",
+                        border: "2px solid #f59e0b",
+                        borderRadius: "8px",
+                        padding: "16px",
+                        margin: "16px",
+                        textAlign: "center"
+                    }}>
+                        <div style={{ marginBottom: "12px", fontWeight: "600", color: "#92400e" }}>
+                            ⚠️ ¿Liberar al conductor {conductorNombre}?
+                        </div>
+                        <div style={{ marginBottom: "16px", fontSize: "13px", color: "#666" }}>
+                            El conductor quedará disponible para otros viajes.
+                        </div>
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => setShowLiberarConfirm(false)}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                className="btn"
+                                onClick={handleConfirmLiberar}
+                                style={{
+                                    backgroundColor: "#f59e0b",
+                                    color: "white",
+                                    border: "none"
+                                }}
+                            >
+                                Sí, liberar
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 <div className="modal-footer">
                     {!isEditing ? (
                         <>
@@ -329,12 +379,7 @@ export function EventDetailModal({
                             {evento.tipo === "viaje" && evento.conductorId && onLiberarViaje && (
                                 <button
                                     className="btn"
-                                    onClick={() => {
-                                        if (window.confirm(`¿Liberar al conductor ${conductorNombre} del viaje?`)) {
-                                            onLiberarViaje(evento.id, evento.conductorId);
-                                            onClose?.();
-                                        }
-                                    }}
+                                    onClick={handleLiberarClick}
                                     style={{
                                         backgroundColor: "#f59e0b",
                                         color: "white",

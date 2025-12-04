@@ -5,8 +5,10 @@
 import { useEffect, useState } from "react";
 import { storageService } from "../services/storageService.js";
 import { logger } from "../utils/errorHandler.js";
+import { useNotification } from "../context/NotificationContext.jsx";
 
 export function useLocalStorage(key, initialValue) {
+  const { showNotification } = useNotification();
   const [value, setValue] = useState(() => {
     try {
       // Intentar cargar desde storage seguro
@@ -32,10 +34,10 @@ export function useLocalStorage(key, initialValue) {
       logger.error(`useLocalStorage: Error saving ${key}`, error);
       // Si falla (ej: cuota excedida), notificar al usuario
       if (error.message.includes('cuota') || error.message.includes('quota')) {
-        alert('Error: Se ha excedido el límite de almacenamiento. Algunos datos no se guardaron.');
+        showNotification('Error: Se ha excedido el límite de almacenamiento. Algunos datos no se guardaron.');
       }
     }
-  }, [key, value]);
+  }, [key, value, showNotification]);
 
   return [value, setValue];
 }

@@ -26,8 +26,9 @@ export function SolicitudModal({
     estado,
   } = solicitud;
 
+  const today = new Date().toISOString().split('T')[0];
   const [conductorId, setConductorId] = useState("");
-  const [fechaAsignacion, setFechaAsignacion] = useState(fecha || "");
+  const [fechaAsignacion, setFechaAsignacion] = useState(fecha || today);
   const [fechaRetorno, setFechaRetorno] = useState(fechaRetornoInicial || "");
   const [tipoCamion, setTipoCamion] = useState("GC");
   const [cotizacion, setCotizacion] = useState(null);

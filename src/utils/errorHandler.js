@@ -335,7 +335,7 @@ export function showSuccess(message) {
 export function showError(message) {
     logger.error('Error shown to user:', message);
     // TODO: Integrar con sistema de notificaciones toast
-    alert(message); // Temporal
+    // alert(message); // Temporal - Removed in favor of ToastNotification
 }
 
 /**

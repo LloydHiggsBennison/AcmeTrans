@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { estimateRoute } from "../utils/routeEstimator";
 import { calcularCamionesNecesarios } from "../utils/capacity";
+import { useNotification } from "../context/NotificationContext";
 
 export function Rutas({
   origenes,
@@ -24,6 +25,7 @@ export function Rutas({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [enviadoADirector, setEnviadoADirector] = useState(false);
+  const { showNotification } = useNotification();
 
   const handleCalcular = async () => {
     if (!origen || !destino) return;
@@ -142,17 +144,17 @@ export function Rutas({
     if (!resultado || !onGenerarCotizacion) return;
 
     if (!fechaEstimada) {
-      alert("Debes seleccionar una fecha estimada para el viaje.");
+      showNotification("Debes seleccionar una fecha estimada para el viaje.");
       return;
     }
 
     if (!fechaRetorno) {
-      alert("Debes seleccionar una fecha de retorno.");
+      showNotification("Debes seleccionar una fecha de retorno.");
       return;
     }
 
     if (fechaRetorno < fechaEstimada) {
-      alert("La fecha de retorno debe ser posterior a la fecha de salida.");
+      showNotification("La fecha de retorno debe ser posterior a la fecha de salida.");
       return;
     }
 
