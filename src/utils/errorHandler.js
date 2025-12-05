@@ -197,6 +197,7 @@ class AuditLog {
      */
     _loadFromStorage() {
         try {
+            if (typeof localStorage === 'undefined') return [];
             const stored = localStorage.getItem('acmetrans_audit_log');
             return stored ? JSON.parse(stored) : [];
         } catch (error) {
@@ -211,6 +212,7 @@ class AuditLog {
      */
     _saveToStorage() {
         try {
+            if (typeof localStorage === 'undefined') return;
             localStorage.setItem('acmetrans_audit_log', JSON.stringify(this.entries));
         } catch (error) {
             logger.error('Error saving audit log', error);

@@ -65,4 +65,10 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react', 'react-dom'],
   },
+
+  // Test configuration
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
 });
