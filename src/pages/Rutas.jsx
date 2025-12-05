@@ -1,8 +1,8 @@
-// src/pages/Rutas.jsx
 import { useState } from "react";
-import { estimateRoute } from "../utils/routeEstimator";
+import { obtenerRuta } from "../services/mapService";
 import { calcularCamionesNecesarios } from "../utils/capacity";
 import { useNotification } from "../context/NotificationContext";
+import { ConductorService } from "../services/conductorService";
 
 export function Rutas({
   origenes,
@@ -32,27 +32,32 @@ export function Rutas({
 
     setLoading(true);
     setErrorMsg("");
-    setEnviadoADirector(false); // si recalculas, se reinicia el estado
+    setEnviadoADirector(false);
 
     try {
+      // Validar inputs
+      if (!tipoCamion) throw new Error("Seleccione tipo de camión");
+
+      if (!pesoKg || !volumenM3) {
+        throw new Error("Debe ingresar peso y volumen para el cálculo exacto de la cotización.");
+      }
+
+      if (!fechaEstimada || !fechaRetorno) {
+        throw new Error("Debe seleccionar fechas de salida y retorno.");
+      }
+
       let distanciaKm = 0;
       let duracionHoras = 0;
 
       try {
-        const osrm = await obtenerRutaDesdeOSRM(origen, destino);
-        distanciaKm = osrm.distanciaKm;
-        duracionHoras = osrm.duracionHoras;
+        const ruta = await obtenerRuta(origen, destino);
+        distanciaKm = ruta.distanciaKm;
+        duracionHoras = ruta.duracionHoras;
       } catch (err) {
-        console.warn("OSRM falló, usando estimador local:", err);
-        const fallback = estimateRoute(origen, destino);
-        distanciaKm = fallback.distanciaKm;
-        duracionHoras = fallback.duracionHoras;
-        setErrorMsg(
-          "No se pudo obtener la ruta en línea. Se usó una estimación local."
-        );
+        throw new Error("No se pudo obtener la ruta: " + err.message);
       }
 
-      // Cálculo de camiones necesarios según peso / volumen
+      // Cálculo de camiones necesarios
       const {
         camiones,
         capacidadTotalKg,
@@ -66,29 +71,29 @@ export function Rutas({
 
       const hospRequerido = duracion >= 4;
 
-      // ==== MODELO DE COSTOS (alineado con SolicitudModal / Director) ====
+      // ==== MODELO DE COSTOS ====
       const camionesNecesarios = camiones || 1;
 
-      // Tarifa base por camión
+      // Tarifa base
       const tarifaBaseUnit = tipoCamion === "GC" ? 250000 : 175000;
       const basePorViaje = tarifaBaseUnit * camionesNecesarios;
 
-      // Combustible: 1 carga cada 400km, $70.000 por carga
+      // Combustible
       const combustibles = Math.max(1, Math.ceil(distancia / 400));
       const combustibleUnit = 70000;
       const totalCombustible =
         combustibles * combustibleUnit * camionesNecesarios;
 
-      // Peajes: 1 peaje cada 150 km, $10.000 cada uno
+      // Peajes
       const peajesCant = Math.round(distancia / 150);
       const peajeUnit = 10000;
       const totalPeajes = peajesCant * peajeUnit * camionesNecesarios;
 
-      // Viáticos: 20.000 (<4h) o 60.000 (>=4h) por camión
+      // Viáticos
       const viaticoUnit = duracion >= 4 ? 60000 : 20000;
       const totalViaticos = viaticoUnit * camionesNecesarios;
 
-      // Hospedaje: 45.000 por camión si dura >=4h
+      // Hospedaje
       const hospedajeUnit = 45000;
       const totalHospedaje = hospRequerido
         ? hospedajeUnit * camionesNecesarios
@@ -111,12 +116,10 @@ export function Rutas({
         duracionHoras: +duracion.toFixed(1),
         hospRequerido,
         camionesNecesarios,
-        // info de capacidad
         capacidadTotalKg,
         capacidadTotalM3,
         okPeso,
         okVolumen,
-        // componentes de costo
         combustibles,
         basePorViaje,
         totalCombustible,
@@ -135,6 +138,10 @@ export function Rutas({
 
       setResultado(res);
       onRouteCalculated?.(res);
+
+    } catch (err) {
+      console.warn("handleCalcular error:", err);
+      setErrorMsg(err.message);
     } finally {
       setLoading(false);
     }
@@ -382,6 +389,44 @@ export function Rutas({
               Tarifa base total: $
               {resultado.basePorViaje.toLocaleString("es-CL")}
             </div>
+
+            {/* Warning de disponibilidad */}
+            {(() => {
+              const check = ConductorService.checkAvailabilityByOrigin(
+                conductores,
+                resultado.origen,
+                resultado.camionesNecesarios,
+                fechaEstimada,
+                fechaRetorno,
+                [], // Rutas no tiene acceso a todos los viajes por ahora
+                []  // ni eventos
+              );
+
+              if (check.faltantes > 0) {
+                return (
+                  <div
+                    style={{
+                      marginBottom: 8,
+                      padding: 8,
+                      background: "#fee2e2",
+                      border: "1px solid #ef4444",
+                      borderRadius: 6,
+                      color: "#991b1b",
+                      fontSize: 12,
+                      fontWeight: 500
+                    }}
+                  >
+                    ⚠️ Atenci&#243;n: Faltan {check.faltantes} conductores en {resultado.origen}.
+                    (Disponibles: {check.disponibles} de {check.totalOrigen})
+                    <div style={{ fontWeight: 400, fontSize: 11, marginTop: 2 }}>
+                      * Nota: No incluye validación de calendario detallado en esta vista.
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             <div style={{ fontSize: 14, fontWeight: 600 }}>
               Costo total estimado: $
               {resultado.costoTotal.toLocaleString("es-CL")}
@@ -429,46 +474,4 @@ export function Rutas({
   );
 }
 
-// =========================
-// Helpers OSRM
-// =========================
 
-async function buscarCoordenadas(lugar) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-    lugar + ", Chile"
-  )}`;
-
-  const res = await fetch(url, {
-    headers: {
-      "Accept-Language": "es",
-    },
-  });
-  const data = await res.json();
-  if (!Array.isArray(data) || !data.length) {
-    throw new Error("No se encontraron coordenadas");
-  }
-
-  const { lat, lon } = data[0];
-  return { lat: Number(lat), lon: Number(lon) };
-}
-
-async function obtenerRutaDesdeOSRM(origen, destino) {
-  const coordOrigen = await buscarCoordenadas(origen);
-  const coordDestino = await buscarCoordenadas(destino);
-
-  const url = `https://router.project-osrm.org/route/v1/driving/${coordOrigen.lon},${coordOrigen.lat};${coordDestino.lon},${coordDestino.lat}?overview=false&alternatives=false&steps=false`;
-
-  const res = await fetch(url);
-  const data = await res.json();
-
-  if (!data.routes || !data.routes.length) {
-    throw new Error("No se pudo obtener ruta desde OSRM.");
-  }
-
-  const ruta = data.routes[0];
-
-  return {
-    distanciaKm: ruta.distance / 1000,
-    duracionHoras: ruta.duration / 3600,
-  };
-}

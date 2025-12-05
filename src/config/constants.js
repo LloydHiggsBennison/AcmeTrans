@@ -19,11 +19,11 @@ export const LIMITS = {
   DURACION_MIN: 0.5,
   DURACION_MAX: 72, // horas
   PESO_MIN: 1,
-  PESO_MAX: 50000, // kg
+  PESO_MAX: 100000000, // 100,000 tons - increased for large simulations
   VOLUMEN_MIN: 0.1,
-  VOLUMEN_MAX: 100, // m³
+  VOLUMEN_MAX: 100000, // 100,000 m³
   CAMIONES_MIN: 1,
-  CAMIONES_MAX: 10,
+  CAMIONES_MAX: 1000, // Increased max trucks
 
   // LocalStorage
   STORAGE_MAX_SIZE: 5 * 1024 * 1024, // 5MB

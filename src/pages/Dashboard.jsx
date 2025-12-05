@@ -5,6 +5,8 @@ import { exportarCotizacionesExcel } from "../utils/excelExport";
 import { SolicitudModal } from "../components/SolicitudModal";
 import { useTripProgress } from "../hooks/useTripProgress";
 import { useNotification } from "../context/NotificationContext";
+import { ConductorService } from "../services/conductorService";
+import { calcularCamionesNecesarios } from "../utils/capacity";
 
 function SolicitudItem({ solicitud, onClick }) {
   const getStatusClass = (estado) => {
@@ -156,13 +158,28 @@ export function Dashboard({
       };
 
       onEditar(editando, datosParaGuardar);
+      showNotification("Se ha editado correctamente la cotizacion");
     }
     setEditando(null);
     setFormData({});
   };
 
   const handleCampoChange = (campo, valor) => {
-    setFormData((prev) => ({ ...prev, [campo]: valor }));
+    setFormData((prev) => {
+      const nuevoState = { ...prev, [campo]: valor };
+
+      // Auto-calcular camiones si cambian los factores de carga
+      if (["pesoKg", "volumenM3", "tipoCamion"].includes(campo)) {
+        const { camiones } = calcularCamionesNecesarios(
+          nuevoState.tipoCamion,
+          nuevoState.pesoKg,
+          nuevoState.volumenM3
+        );
+        nuevoState.camionesNecesarios = camiones;
+      }
+
+      return nuevoState;
+    });
   };
 
   const costoTotalCalculado =
@@ -369,7 +386,13 @@ export function Dashboard({
                         </button>
                         <button
                           className="btn btn-secondary"
-                          onClick={(e) => { e.stopPropagation(); onRechazar && onRechazar(c.id); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onRechazar) {
+                              onRechazar(c.id);
+                              showNotification(`Se ha rechazado la cotizacion ${c.id}`);
+                            }
+                          }}
                         >
                           ✖ Rechazar
                         </button>
@@ -525,6 +548,52 @@ export function Dashboard({
                   </div>
                 </div>
 
+                {/* Warning de disponibilidad (Calculado dinámicamente) */}
+                {(() => {
+                  const necesarios = Number(formData.camionesNecesarios) || 1;
+                  const origen = formData.origen;
+                  // Dashboard tiene acceso a 'conductores', 'viajes' y 'eventosCalendario'
+
+                  if (origen && necesarios > 0) {
+                    const check = ConductorService.checkAvailabilityByOrigin(
+                      conductores,
+                      origen,
+                      necesarios,
+                      formData.fechaEvento || hoy, // Usar fechaEvento o hoy
+                      formData.fechaEvento || hoy, // Retorno no está en formData explícitamente a veces, asumimos mismo día o sin chequeo rango fino
+                      viajes,
+                      eventosCalendario
+                    );
+
+                    if (check.faltantes > 0) {
+                      return (
+                        <div style={{
+                          marginBottom: 12,
+                          padding: "8px 12px",
+                          background: "#fee2e2",
+                          border: "1px solid #ef4444",
+                          borderRadius: 6,
+                          color: "#991b1b",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8
+                        }}>
+                          <span>⚠️</span>
+                          <div>
+                            Atenci&#243;n: Faltan <strong>{check.faltantes}</strong> conductores en {origen}.
+                            <div style={{ fontWeight: 400, fontSize: 12 }}>
+                              Disponibles: {check.disponibles} de {check.totalOrigen}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                  }
+                  return null;
+                })()}
+
                 <div className="grid-2" style={{ marginBottom: 10 }}>
                   <div>
                     <div className="label">Conductor</div>
@@ -612,6 +681,7 @@ export function Dashboard({
               </div>
             </div>
 
+
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={handleCancelarEdicion}>
                 Cancelar
@@ -622,190 +692,194 @@ export function Dashboard({
             </div>
           </div>
         </div>
-      )}
+
+      )
+      }
 
       {/* Modal de Detalle de Cotización */}
-      {modalCotizacion && (
-        <div className="modal-backdrop" onClick={() => setModalCotizacion(null)}>
-          <div className="modal" style={{ maxWidth: 800 }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>📋 Detalle de Cotización #{modalCotizacion.id}</h2>
-              <button
-                onClick={() => setModalCotizacion(null)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#64748b",
-                  fontSize: "20px",
-                  cursor: "pointer",
-                  padding: "4px",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "32px",
-                  height: "32px",
-                  transition: "all 0.2s"
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.background = "#334155";
-                  e.target.style.color = "#f8fafc";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.background = "transparent";
-                  e.target.style.color = "#64748b";
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="modal-body" style={{ maxHeight: 600, overflowY: "auto" }}>
-              {/* Información del servicio */}
-              <div className="card" style={{ marginBottom: 12 }}>
-                <div className="card-header">Información del servicio</div>
-                <div className="grid-2" style={{ marginTop: 10, gap: 12, fontSize: 13 }}>
-                  <div>
-                    <div className="label">Origen</div>
-                    <div style={{ fontWeight: 500 }}>{modalCotizacion.origen || 'N/D'}</div>
-                  </div>
-                  <div>
-                    <div className="label">Destino</div>
-                    <div style={{ fontWeight: 500 }}>{modalCotizacion.destino || 'N/D'}</div>
-                  </div>
-                  <div>
-                    <div className="label">Distancia</div>
-                    <div style={{ fontWeight: 500 }}>{modalCotizacion.distanciaKm || 0} km</div>
-                  </div>
-                  <div>
-                    <div className="label">Duración estimada</div>
-                    <div style={{ fontWeight: 500 }}>{modalCotizacion.duracionHoras || 0} horas</div>
-                  </div>
-                  <div>
-                    <div className="label">Tipo de camión</div>
-                    <div style={{ fontWeight: 500 }}>{modalCotizacion.tipoCamion || 'N/D'}</div>
-                  </div>
-                  <div>
-                    <div className="label">Estado</div>
-                    <div>
-                      <span className={`cotizacion-estado ${modalCotizacion.estado}`}>
-                        {getEstadoLabel(modalCotizacion.estado)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+      {
+        modalCotizacion && (
+          <div className="modal-backdrop" onClick={() => setModalCotizacion(null)}>
+            <div className="modal" style={{ maxWidth: 800 }} onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>📋 Detalle de Cotización #{modalCotizacion.id}</h2>
+                <button
+                  onClick={() => setModalCotizacion(null)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "#64748b",
+                    fontSize: "20px",
+                    cursor: "pointer",
+                    padding: "4px",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "32px",
+                    height: "32px",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = "#334155";
+                    e.target.style.color = "#f8fafc";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = "transparent";
+                    e.target.style.color = "#64748b";
+                  }}
+                >
+                  ✕
+                </button>
               </div>
 
-              {/* Logística */}
-              <div className="card" style={{ marginBottom: 12 }}>
-                <div className="card-header">Logística</div>
-                <div className="grid-3" style={{ marginTop: 10, gap: 12, fontSize: 13 }}>
-                  <div>
-                    <div className="label">Peso total</div>
-                    <div style={{ fontWeight: 500 }}>{modalCotizacion.pesoKg || 0} kg</div>
-                  </div>
-                  <div>
-                    <div className="label">Volumen total</div>
-                    <div style={{ fontWeight: 500 }}>{modalCotizacion.volumenM3 || 0} m³</div>
-                  </div>
-                  <div>
-                    <div className="label">Camiones necesarios</div>
-                    <div style={{ fontWeight: 500 }}>{modalCotizacion.camionesNecesarios || 1}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Detalle de costos */}
-              <div className="card" style={{ marginBottom: 12 }}>
-                <div className="card-header">Detalle de costos</div>
-                <div style={{ marginTop: 10, fontSize: 13 }}>
-                  {modalCotizacion.detalleCostos ? (
-                    <>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-                        <span className="label">Base por viaje:</span>
-                        <span style={{ fontWeight: 500 }}>${(modalCotizacion.detalleCostos.basePorViaje || 0).toLocaleString('es-CL')}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-                        <span className="label">Combustible:</span>
-                        <span style={{ fontWeight: 500 }}>${(modalCotizacion.detalleCostos.combustible || 0).toLocaleString('es-CL')}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-                        <span className="label">Peajes:</span>
-                        <span style={{ fontWeight: 500 }}>${(modalCotizacion.detalleCostos.peajes || 0).toLocaleString('es-CL')}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-                        <span className="label">Hospedaje:</span>
-                        <span style={{ fontWeight: 500 }}>${(modalCotizacion.detalleCostos.hospedaje || 0).toLocaleString('es-CL')}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-                        <span className="label">Viáticos:</span>
-                        <span style={{ fontWeight: 500 }}>${(modalCotizacion.detalleCostos.viaticos || 0).toLocaleString('es-CL')}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ color: '#9ca3af', textAlign: 'center', padding: 10 }}>
-                      No hay detalle de costos disponible
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Total */}
-              <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 16, fontWeight: 600 }}>Costo Total:</span>
-                  <span style={{ fontSize: 20, fontWeight: 700, color: '#3b82f6' }}>
-                    ${(modalCotizacion.costoTotal || 0).toLocaleString('es-CL')}
-                  </span>
-                </div>
-              </div>
-
-              {/* Información adicional */}
-              {(modalCotizacion.solicitudId || modalCotizacion.conductorId || modalCotizacion.fechaEvento || modalCotizacion.fechaCreacion) && (
-                <div className="card" style={{ marginTop: 12 }}>
-                  <div className="card-header">Información adicional</div>
+              <div className="modal-body" style={{ maxHeight: 600, overflowY: "auto" }}>
+                {/* Información del servicio */}
+                <div className="card" style={{ marginBottom: 12 }}>
+                  <div className="card-header">Información del servicio</div>
                   <div className="grid-2" style={{ marginTop: 10, gap: 12, fontSize: 13 }}>
-                    {modalCotizacion.solicitudId && (
+                    <div>
+                      <div className="label">Origen</div>
+                      <div style={{ fontWeight: 500 }}>{modalCotizacion.origen || 'N/D'}</div>
+                    </div>
+                    <div>
+                      <div className="label">Destino</div>
+                      <div style={{ fontWeight: 500 }}>{modalCotizacion.destino || 'N/D'}</div>
+                    </div>
+                    <div>
+                      <div className="label">Distancia</div>
+                      <div style={{ fontWeight: 500 }}>{modalCotizacion.distanciaKm || 0} km</div>
+                    </div>
+                    <div>
+                      <div className="label">Duración estimada</div>
+                      <div style={{ fontWeight: 500 }}>{modalCotizacion.duracionHoras || 0} horas</div>
+                    </div>
+                    <div>
+                      <div className="label">Tipo de camión</div>
+                      <div style={{ fontWeight: 500 }}>{modalCotizacion.tipoCamion || 'N/D'}</div>
+                    </div>
+                    <div>
+                      <div className="label">Estado</div>
                       <div>
-                        <div className="label">Solicitud ID</div>
-                        <div style={{ fontWeight: 500 }}>#{modalCotizacion.solicitudId}</div>
+                        <span className={`cotizacion-estado ${modalCotizacion.estado}`}>
+                          {getEstadoLabel(modalCotizacion.estado)}
+                        </span>
                       </div>
-                    )}
-                    {modalCotizacion.conductorId && (
-                      <div>
-                        <div className="label">Conductor asignado</div>
-                        <div style={{ fontWeight: 500 }}>
-                          {conductores.find(c => c.id === modalCotizacion.conductorId)?.nombre || `ID: ${modalCotizacion.conductorId}`}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Logística */}
+                <div className="card" style={{ marginBottom: 12 }}>
+                  <div className="card-header">Logística</div>
+                  <div className="grid-3" style={{ marginTop: 10, gap: 12, fontSize: 13 }}>
+                    <div>
+                      <div className="label">Peso total</div>
+                      <div style={{ fontWeight: 500 }}>{modalCotizacion.pesoKg || 0} kg</div>
+                    </div>
+                    <div>
+                      <div className="label">Volumen total</div>
+                      <div style={{ fontWeight: 500 }}>{modalCotizacion.volumenM3 || 0} m³</div>
+                    </div>
+                    <div>
+                      <div className="label">Camiones necesarios</div>
+                      <div style={{ fontWeight: 500 }}>{modalCotizacion.camionesNecesarios || 1}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Detalle de costos */}
+                <div className="card" style={{ marginBottom: 12 }}>
+                  <div className="card-header">Detalle de costos</div>
+                  <div style={{ marginTop: 10, fontSize: 13 }}>
+                    {modalCotizacion.detalleCostos ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                          <span className="label">Base por viaje:</span>
+                          <span style={{ fontWeight: 500 }}>${(modalCotizacion.detalleCostos.basePorViaje || 0).toLocaleString('es-CL')}</span>
                         </div>
-                      </div>
-                    )}
-                    {modalCotizacion.fechaEvento && (
-                      <div>
-                        <div className="label">Fecha del evento</div>
-                        <div style={{ fontWeight: 500 }}>{modalCotizacion.fechaEvento}</div>
-                      </div>
-                    )}
-                    {modalCotizacion.fechaCreacion && (
-                      <div>
-                        <div className="label">Fecha de creación</div>
-                        <div style={{ fontWeight: 500 }}>
-                          {new Date(modalCotizacion.fechaCreacion).toLocaleString('es-CL')}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                          <span className="label">Combustible:</span>
+                          <span style={{ fontWeight: 500 }}>${(modalCotizacion.detalleCostos.combustible || 0).toLocaleString('es-CL')}</span>
                         </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                          <span className="label">Peajes:</span>
+                          <span style={{ fontWeight: 500 }}>${(modalCotizacion.detalleCostos.peajes || 0).toLocaleString('es-CL')}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                          <span className="label">Hospedaje:</span>
+                          <span style={{ fontWeight: 500 }}>${(modalCotizacion.detalleCostos.hospedaje || 0).toLocaleString('es-CL')}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                          <span className="label">Viáticos:</span>
+                          <span style={{ fontWeight: 500 }}>${(modalCotizacion.detalleCostos.viaticos || 0).toLocaleString('es-CL')}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ color: '#9ca3af', textAlign: 'center', padding: 10 }}>
+                        No hay detalle de costos disponible
                       </div>
                     )}
                   </div>
                 </div>
-              )}
-            </div>
 
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setModalCotizacion(null)}>
-                Cerrar
-              </button>
+                {/* Total */}
+                <div className="card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 16, fontWeight: 600 }}>Costo Total:</span>
+                    <span style={{ fontSize: 20, fontWeight: 700, color: '#3b82f6' }}>
+                      ${(modalCotizacion.costoTotal || 0).toLocaleString('es-CL')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Información adicional */}
+                {(modalCotizacion.solicitudId || modalCotizacion.conductorId || modalCotizacion.fechaEvento || modalCotizacion.fechaCreacion) && (
+                  <div className="card" style={{ marginTop: 12 }}>
+                    <div className="card-header">Información adicional</div>
+                    <div className="grid-2" style={{ marginTop: 10, gap: 12, fontSize: 13 }}>
+                      {modalCotizacion.solicitudId && (
+                        <div>
+                          <div className="label">Solicitud ID</div>
+                          <div style={{ fontWeight: 500 }}>#{modalCotizacion.solicitudId}</div>
+                        </div>
+                      )}
+                      {modalCotizacion.conductorId && (
+                        <div>
+                          <div className="label">Conductor asignado</div>
+                          <div style={{ fontWeight: 500 }}>
+                            {conductores.find(c => c.id === modalCotizacion.conductorId)?.nombre || `ID: ${modalCotizacion.conductorId}`}
+                          </div>
+                        </div>
+                      )}
+                      {modalCotizacion.fechaEvento && (
+                        <div>
+                          <div className="label">Fecha del evento</div>
+                          <div style={{ fontWeight: 500 }}>{modalCotizacion.fechaEvento}</div>
+                        </div>
+                      )}
+                      {modalCotizacion.fechaCreacion && (
+                        <div>
+                          <div className="label">Fecha de creación</div>
+                          <div style={{ fontWeight: 500 }}>
+                            {new Date(modalCotizacion.fechaCreacion).toLocaleString('es-CL')}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setModalCotizacion(null)}>
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </section>
+        )
+      }
+    </section >
   );
 }

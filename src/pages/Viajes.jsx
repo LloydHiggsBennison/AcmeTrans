@@ -1,8 +1,8 @@
-// src/pages/Viajes.jsx
 import { useMemo, useState } from "react";
-import { estimateRoute } from "../utils/routeEstimator";
+import { obtenerRuta } from "../services/mapService";
 import { getTripMetrics } from "../utils/tripMetrics";
 import { calcularCamionesNecesarios } from "../utils/capacity";
+import { ConductorService } from "../services/conductorService";
 
 const ESTADOS = ["todos", "pendiente", "en-curso", "completado"];
 
@@ -48,25 +48,52 @@ export function Viajes({
     return viajes.filter((v) => v.estado === filtroEstado);
   }, [viajes, filtroEstado]);
 
-  const actualizarEstimacion = (nuevoOrigen, nuevoDestino) => {
+  // Estado simple para error
+  const [errorV, setErrorV] = useState("");
+
+  const actualizarEstimacion = async (nuevoOrigen, nuevoDestino) => {
     if (!nuevoOrigen || !nuevoDestino) {
       setForm((f) => ({ ...f, distanciaKm: "", duracionHoras: "" }));
       return;
     }
-    const { distanciaKm, duracionHoras } = estimateRoute(
-      nuevoOrigen,
-      nuevoDestino
-    );
-    setForm((f) => ({
-      ...f,
-      distanciaKm,
-      duracionHoras,
-    }));
+
+    // Si queremos que sea automático al cambiar select, debe ser async/await pero en un efecto o promesa
+    // Para simplificar, lo llamamos y actualizamos estado.
+    try {
+      const { distanciaKm, duracionHoras } = await obtenerRuta(nuevoOrigen, nuevoDestino);
+      setForm((f) => ({
+        ...f,
+        distanciaKm,
+        duracionHoras,
+      }));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.conductorId || !form.origen || !form.destino) return;
+    setErrorV("");
+
+    // Validación "TODO rellenado"
+    if (
+      !form.conductorId ||
+      !form.origen ||
+      !form.destino ||
+      !form.tipoCamion ||
+      !form.fecha ||
+      !form.fechaRetorno ||
+      !form.pesoKg ||
+      !form.volumenM3
+    ) {
+      setErrorV("Todos los campos son obligatorios para registrar el viaje.");
+      return;
+    }
+
+    if (form.fechaRetorno < form.fecha) {
+      setErrorV("Fecha de retorno debe ser mayor o igual a salida.");
+      return;
+    }
 
     const { camiones } = calcularCamionesNecesarios(
       form.tipoCamion,
@@ -292,21 +319,59 @@ export function Viajes({
           </div>
 
           {form.pesoKg || form.volumenM3 ? (
-            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 10 }}>
-              {
-                calcularCamionesNecesarios(
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                {
+                  calcularCamionesNecesarios(
+                    form.tipoCamion,
+                    form.pesoKg,
+                    form.volumenM3
+                  ).camiones
+                }{" "}
+                camión(es) necesarios según capacidad seleccionada.
+              </div>
+
+              {/* Warning disponibilidad */}
+              {(() => {
+                const necesarios = calcularCamionesNecesarios(
                   form.tipoCamion,
                   form.pesoKg,
                   form.volumenM3
-                ).camiones
-              }{" "}
-              camión(es) necesarios según capacidad seleccionada.
+                ).camiones;
+
+                // Viajes.jsx tiene acceso a 'conductores', pero no a 'viajes' (otros viajes) o 'eventosCalendario' en los props visibles.
+                // Si 'viajes' props incluye TODOS los viajes, podemos usarlo.
+                // Asumiremos que 'viajes' contiene la lista global para filtrar.
+                const check = ConductorService.checkAvailabilityByOrigin(
+                  conductores,
+                  form.origen,
+                  necesarios,
+                  form.fecha,
+                  form.fechaRetorno,
+                  viajes, // usamos la prop 'viajes'
+                  [] // eventos no disponible en props
+                );
+
+                if (check.faltantes > 0) {
+                  return (
+                    <div style={{ color: "#ef4444", fontSize: 12, marginTop: 4, fontWeight: 500 }}>
+                      ⚠️ Faltan {check.faltantes} conductores en {form.origen}. (Disp: {check.disponibles})
+                    </div>
+                  );
+                }
+              })()}
             </div>
           ) : null}
 
           <button className="btn btn-primary" type="submit">
             ➕ Registrar viaje
           </button>
+
+          {errorV && (
+            <div style={{ color: "#f97373", fontSize: 13, marginTop: 10 }}>
+              {errorV}
+            </div>
+          )}
         </form>
 
         <div className="card">

@@ -1,8 +1,9 @@
 // src/components/SolicitudModal.jsx
 
 import { useState, useMemo } from "react";
-import { estimateRoute } from "../utils/routeEstimator";
+import { obtenerRuta } from "../services/mapService";
 import { ConductorService } from "../services/conductorService";
+import { calcularCamionesNecesarios } from "../utils/capacity";
 
 export function SolicitudModal({
   solicitud,
@@ -63,7 +64,7 @@ export function SolicitudModal({
       });
   }, [conductores, fechaAsignacion, fechaRetorno, viajes, eventosCalendario]);
 
-  const handleCalcular = () => {
+  const handleCalcular = async () => {
     setError("");
 
     if (!origen || !destino) {
@@ -71,62 +72,63 @@ export function SolicitudModal({
       return;
     }
 
-    const { distanciaKm, duracionHoras } = estimateRoute(origen, destino);
+    try {
+      const { distanciaKm, duracionHoras } = await obtenerRuta(origen, destino);
 
-    const caps = CAPACIDAD[tipoCamion] || CAPACIDAD.GC;
+      const caps = CAPACIDAD[tipoCamion] || CAPACIDAD.GC;
 
-    const camionesPorPeso =
-      pesoKg > 0 ? Math.ceil(pesoKg / caps.kg) : 1;
-    const camionesPorVolumen =
-      volumenM3 > 0 ? Math.ceil(volumenM3 / caps.m3) : 1;
+      // Usar utilidad centralizada para consistencia y validación de límites
+      const { camiones: camionesNecesarios } = calcularCamionesNecesarios(
+        tipoCamion,
+        pesoKg,
+        volumenM3
+      );
 
-    const camionesNecesarios = Math.max(
-      camionesPorPeso,
-      camionesPorVolumen,
-      1
-    );
+      // Reglas de costos
+      const basePorViaje =
+        (tipoCamion === "GC" ? 250000 : 175000) * camionesNecesarios;
 
-    // Reglas de costos
-    const basePorViaje =
-      (tipoCamion === "GC" ? 250000 : 175000) * camionesNecesarios;
+      const hospedaje = duracionHoras >= 4;
+      const viaticosUnidad = duracionHoras >= 4 ? 60000 : 20000;
 
-    const hospedaje = duracionHoras >= 4;
-    const viaticosUnidad = duracionHoras >= 4 ? 60000 : 20000;
+      const distancia = distanciaKm || 1;
+      const combustibles = Math.max(1, Math.ceil(distancia / 400));
+      const costoCombustible = combustibles * 70000 * camionesNecesarios;
 
-    const distancia = distanciaKm || 1;
-    const combustibles = Math.max(1, Math.ceil(distancia / 400));
-    const costoCombustible = combustibles * 70000 * camionesNecesarios;
+      const costoPeajes =
+        Math.ceil(distancia / 200) * 20000 * camionesNecesarios;
 
-    const costoPeajes =
-      Math.ceil(distancia / 200) * 20000 * camionesNecesarios;
+      const costoHospedaje = hospedaje
+        ? 45000 * camionesNecesarios
+        : 0;
 
-    const costoHospedaje = hospedaje
-      ? 45000 * camionesNecesarios
-      : 0;
+      const costoViaticos = viaticosUnidad * camionesNecesarios;
 
-    const costoViaticos = viaticosUnidad * camionesNecesarios;
+      const total =
+        basePorViaje +
+        costoCombustible +
+        costoPeajes +
+        costoHospedaje +
+        costoViaticos;
 
-    const total =
-      basePorViaje +
-      costoCombustible +
-      costoPeajes +
-      costoHospedaje +
-      costoViaticos;
-
-    setCotizacion({
-      distanciaKm,
-      duracionHoras,
-      camionesNecesarios,
-      hospedaje,
-      costos: {
-        basePorViaje,
-        combustible: costoCombustible,
-        peajes: costoPeajes,
-        hospedaje: costoHospedaje,
-        viaticos: costoViaticos,
-        total,
-      },
-    });
+      setCotizacion({
+        distanciaKm,
+        duracionHoras,
+        camionesNecesarios,
+        hospedaje,
+        costos: {
+          basePorViaje,
+          combustible: costoCombustible,
+          peajes: costoPeajes,
+          hospedaje: costoHospedaje,
+          viaticos: costoViaticos,
+          total,
+        },
+      });
+    } catch (err) {
+      console.error(err);
+      setError("Error al calcular la ruta: " + err.message);
+    }
   };
 
   const handleEnviarADirector = () => {
@@ -199,8 +201,23 @@ export function SolicitudModal({
   };
 
   const handleAsignarViaje = () => {
-    if (!conductorId || !fechaAsignacion) {
-      setError("Debes seleccionar conductor y fecha.");
+    if (!cotizacion) {
+      setError("Debes calcular la ruta primero.");
+      return;
+    }
+
+    if (!conductorId) {
+      setError("Debes seleccionar un conductor.");
+      return;
+    }
+
+    if (!fechaAsignacion || !fechaRetorno) {
+      setError("Debes seleccionar fecha de salida y retorno.");
+      return;
+    }
+
+    if (fechaRetorno < fechaAsignacion) {
+      setError("La fecha de retorno debe ser posterior a la fecha de salida.");
       return;
     }
 
@@ -343,7 +360,7 @@ export function SolicitudModal({
           </div>
 
           <div className="helper-text" style={{ marginBottom: 12, marginTop: -8 }}>
-            ℹ️ El tipo de camión se calcula automáticamente según peso/volumen.
+            ℹ️ El cálculo de camiones se ajustará automáticamente soportando grandes volúmenes de carga.
           </div>
 
           {/* Fila 3: Botón de cálculo */}
@@ -376,6 +393,41 @@ export function SolicitudModal({
                   <strong>Camiones necesarios:</strong>{" "}
                   {cotizacion.camionesNecesarios}
                 </div>
+
+                {/* Warning de disponibilidad */}
+                {(() => {
+                  const check = ConductorService.checkAvailabilityByOrigin(
+                    conductores,
+                    origen,
+                    cotizacion.camionesNecesarios,
+                    fechaAsignacion,
+                    fechaRetorno,
+                    viajes,
+                    eventosCalendario
+                  );
+
+                  if (check.faltantes > 0) {
+                    return (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          padding: 8,
+                          background: "#fee2e2",
+                          border: "1px solid #ef4444",
+                          borderRadius: 6,
+                          color: "#991b1b",
+                          fontSize: 12,
+                          fontWeight: 500
+                        }}
+                      >
+                        ⚠️ Atenci&#243;n: Faltan {check.faltantes} conductores en {origen} para cubrir esta operaci&#243;n.
+                        (Disponibles: {check.disponibles} de {check.totalOrigen})
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 <div style={{ marginTop: 6 }}>
                   <strong>Total estimado:</strong>{" "}
                   $

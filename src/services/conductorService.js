@@ -280,4 +280,34 @@ export class ConductorService {
             totalHoras: Math.round(totalHoras * 10) / 10,
         };
     }
+    /**
+     * Verificar disponibilidad por origen y contar faltantes
+     * @param {Array} conductores - Lista total de conductores
+     * @param {string} origen - Origen requerido
+     * @param {number} requeridos - Cantidad de conductores/camiones requeridos
+     * @param {string} fechaInicio - Fecha de inicio
+     * @param {string} fechaFin - Fecha de fin
+     * @param {Array} viajes - Lista de viajes existentes (para verificar cruces)
+     * @param {Array} eventos - Lista de eventos calendario
+     * @returns {Object} { faltantes: number, disponibles: number, totalOrigen: number }
+     */
+    static checkAvailabilityByOrigin(conductores, origen, requeridos, fechaInicio, fechaFin, viajes = [], eventos = []) {
+        // Filtrar por origen y estado básico
+        const conductoresOrigen = conductores.filter(c =>
+            c.origen === origen && c.estado !== ESTADOS.CONDUCTOR.INACTIVO
+        );
+
+        // Contar cuántos están realmente disponibles para las fechas
+        const disponibles = conductoresOrigen.filter(c =>
+            this.isAvailableForRange(c, fechaInicio, fechaFin, viajes, eventos)
+        ).length;
+
+        const faltantes = Math.max(0, requeridos - disponibles);
+
+        return {
+            faltantes,
+            disponibles,
+            totalOrigen: conductoresOrigen.length
+        };
+    }
 }
