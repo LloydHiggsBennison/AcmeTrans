@@ -90,16 +90,69 @@ export class ConductorService {
      */
     static isAvailable(conductor, fecha) {
         // Verificar estado
-        if (conductor.estado !== ESTADOS.CONDUCTOR.DISPONIBLE) {
+        if (conductor.estado === ESTADOS.CONDUCTOR.INACTIVO) {
             return false;
         }
 
-        // Verificar bloqueos de calendario
+        // Verificar bloqueos de calendario (legacy check)
         if (conductor.bloqueos && conductor.bloqueos.length > 0) {
             const hayBloqueo = conductor.bloqueos.some(b => b.fecha === fecha);
             if (hayBloqueo) {
                 return false;
             }
+        }
+
+        return true;
+    }
+
+    /**
+     * Verificar disponibilidad de un conductor en un rango de fechas
+     * @param {Object} conductor - Conductor
+     * @param {string} fechaInicio - Fecha inicio (YYYY-MM-DD)
+     * @param {string} fechaFin - Fecha fin (YYYY-MM-DD)
+     * @param {Array} viajes - Lista de viajes
+     * @param {Array} eventosCalendario - Lista de eventos de calendario
+     * @returns {boolean} true si está disponible
+     */
+    static isAvailableForRange(conductor, fechaInicio, fechaFin, viajes = [], eventosCalendario = []) {
+        if (conductor.estado === ESTADOS.CONDUCTOR.INACTIVO) {
+            return false;
+        }
+
+        if (!fechaInicio) return true;
+        const start = new Date(fechaInicio);
+        const end = fechaFin ? new Date(fechaFin) : start;
+
+        // Helper para verificar superposición de rangos
+        const isOverlapping = (s1, e1, s2, e2) => {
+            const start1 = new Date(s1);
+            const end1 = e1 ? new Date(e1) : start1;
+            const start2 = new Date(s2);
+            const end2 = e2 ? new Date(e2) : start2;
+            return start1 <= end2 && start2 <= end1;
+        };
+
+        // Verificar conflictos con viajes
+        const tieneViaje = viajes.some(v =>
+            v.conductorId === conductor.id &&
+            v.estado !== ESTADOS.VIAJE.CANCELADO &&
+            v.estado !== ESTADOS.VIAJE.COMPLETADO && // Opcional: si ya completó, ¿está libre? Asumamos que sí.
+            isOverlapping(fechaInicio, fechaFin, v.fecha, v.fechaRetorno)
+        );
+
+        if (tieneViaje) return false;
+
+        // Verificar conflictos con eventos de calendario
+        const tieneEvento = eventosCalendario.some(e =>
+            e.conductorId === conductor.id &&
+            isOverlapping(fechaInicio, fechaFin, e.fecha, e.fechaRetorno)
+        );
+
+        if (tieneEvento) return false;
+
+        // Verificar bloqueos manuales (legacy)
+        if (conductor.bloqueos?.some(b => isOverlapping(fechaInicio, fechaFin, b.fecha, b.fecha))) {
+            return false;
         }
 
         return true;

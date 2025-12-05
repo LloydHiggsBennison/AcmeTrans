@@ -57,8 +57,8 @@ export function validateConductor(conductor) {
         const nombre = sanitizeString(conductor.nombre).trim();
         if (nombre.length < LIMITS.CONDUCTOR_NOMBRE_MIN || nombre.length > LIMITS.CONDUCTOR_NOMBRE_MAX) {
             errors.nombre = ERROR_MESSAGES.CONDUCTOR_NOMBRE_INVALID;
-        } else if (!REGEX.SOLO_LETRAS.test(nombre)) {
-            errors.nombre = 'El nombre solo puede contener letras';
+        } else if (!REGEX.ALFANUMERICO.test(nombre)) {
+            errors.nombre = 'El nombre solo puede contener letras y números';
         } else {
             sanitized.nombre = nombre;
         }

@@ -48,6 +48,7 @@ export function Dashboard({
   viajes = [],
   solicitudes = [],
   cotizaciones = [],
+  eventosCalendario = [],
   userRole,
   onGestionarSolicitud,
   onAsignarSolicitud,
@@ -387,6 +388,8 @@ export function Dashboard({
         <SolicitudModal
           solicitud={modalSolicitud}
           conductores={conductores}
+          viajes={viajes}
+          eventosCalendario={eventosCalendario}
           onClose={() => setModalSolicitud(null)}
           onGestionar={onGestionarSolicitud}
           onAsignar={onAsignarSolicitud}

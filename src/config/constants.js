@@ -27,7 +27,7 @@ export const LIMITS = {
 
   // LocalStorage
   STORAGE_MAX_SIZE: 5 * 1024 * 1024, // 5MB
-  
+
   // Rate Limiting
   MAX_REQUESTS_PER_MINUTE: 60,
   MAX_ROUTE_CALCULATIONS_PER_HOUR: 100,
@@ -110,26 +110,26 @@ export const ERROR_MESSAGES = {
   // Validación general
   REQUIRED_FIELD: 'Este campo es obligatorio',
   INVALID_FORMAT: 'Formato inválido',
-  
+
   // Conductores
   CONDUCTOR_NOMBRE_INVALID: `El nombre debe tener entre ${LIMITS.CONDUCTOR_NOMBRE_MIN} y ${LIMITS.CONDUCTOR_NOMBRE_MAX} caracteres`,
   CONDUCTOR_TELEFONO_INVALID: 'El teléfono debe tener el formato +56 9 XXXX XXXX',
   CONDUCTOR_LICENCIA_INVALID: 'La licencia debe ser A4 o A5',
-  
+
   // Viajes
   DISTANCIA_INVALID: `La distancia debe estar entre ${LIMITS.DISTANCIA_MIN} y ${LIMITS.DISTANCIA_MAX} km`,
   DURACION_INVALID: `La duración debe estar entre ${LIMITS.DURACION_MIN} y ${LIMITS.DURACION_MAX} horas`,
   PESO_INVALID: `El peso debe estar entre ${LIMITS.PESO_MIN} y ${LIMITS.PESO_MAX} kg`,
   VOLUMEN_INVALID: `El volumen debe estar entre ${LIMITS.VOLUMEN_MIN} y ${LIMITS.VOLUMEN_MAX} m³`,
   CAMIONES_INVALID: `La cantidad de camiones debe estar entre ${LIMITS.CAMIONES_MIN} y ${LIMITS.CAMIONES_MAX}`,
-  
+
   // LocalStorage
   STORAGE_QUOTA_EXCEEDED: 'Se ha excedido el límite de almacenamiento',
   STORAGE_CORRUPT_DATA: 'Los datos almacenados están corruptos',
-  
+
   // Rate Limiting
   RATE_LIMIT_EXCEEDED: 'Has excedido el límite de solicitudes. Intenta nuevamente en unos minutos.',
-  
+
   // General
   UNEXPECTED_ERROR: 'Ha ocurrido un error inesperado. Por favor, intenta nuevamente.',
   NETWORK_ERROR: 'Error de conexión. Verifica tu conexión a internet.',
@@ -140,7 +140,7 @@ export const ERROR_MESSAGES = {
 // ============================================
 
 export const REGEX = {
-  TELEFONO_CHILE: /^\+56\s9\s\d{4}\s\d{4}$/,
+  TELEFONO_CHILE: /^\+56\s9\s?[\d\s]{6,12}$/,
   EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   SOLO_LETRAS: /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/,
   SOLO_NUMEROS: /^\d+$/,
@@ -158,15 +158,15 @@ export const SECURITY_CONFIG = {
     'https://router.project-osrm.org',
     'https://nominatim.openstreetmap.org',
   ],
-  
+
   // Encryption
   ENCRYPTION_ENABLED: true,
   ENCRYPTION_KEY_PREFIX: 'acmetrans_secure_',
-  
+
   // Audit Log
   AUDIT_LOG_ENABLED: true,
   MAX_AUDIT_ENTRIES: 1000,
-  
+
   // Session
   SESSION_TIMEOUT_MINUTES: 30,
 };
@@ -187,6 +187,6 @@ export const API_ENDPOINTS = {
 export const APP_CONFIG = {
   NAME: 'AcmeTrans',
   VERSION: '1.0.0',
-  ENVIRONMENT: import.meta.env.MODE || 'development',
-  DEBUG: import.meta.env.DEV || false,
+  ENVIRONMENT: (import.meta.env && import.meta.env.MODE) || 'development',
+  DEBUG: (import.meta.env && import.meta.env.DEV) || false,
 };

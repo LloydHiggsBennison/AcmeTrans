@@ -1,11 +1,14 @@
 // src/components/SolicitudModal.jsx
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { estimateRoute } from "../utils/routeEstimator";
+import { ConductorService } from "../services/conductorService";
 
 export function SolicitudModal({
   solicitud,
   conductores,
+  viajes = [],
+  eventosCalendario = [],
   onClose,
   onGestionar,
   onAsignar,
@@ -40,14 +43,25 @@ export function SolicitudModal({
     MC: { kg: 14000, m3: 30 },
   };
 
-  const orden = { "Coquimbo": 1, "Santiago": 2, "Osorno": 3 };
-  const conductoresDisponibles = conductores
-    .filter((c) => c.estado !== "inactivo")
-    .sort((a, b) => {
-      const ordenA = orden[a.origen] || 999;
-      const ordenB = orden[b.origen] || 999;
-      return ordenA - ordenB;
-    });
+  const conductoresDisponibles = useMemo(() => {
+    const orden = { "Coquimbo": 1, "Santiago": 2, "Osorno": 3 };
+
+    return conductores
+      .filter((c) =>
+        ConductorService.isAvailableForRange(
+          c,
+          fechaAsignacion,
+          fechaRetorno,
+          viajes,
+          eventosCalendario
+        )
+      )
+      .sort((a, b) => {
+        const ordenA = orden[a.origen] || 999;
+        const ordenB = orden[b.origen] || 999;
+        return ordenA - ordenB;
+      });
+  }, [conductores, fechaAsignacion, fechaRetorno, viajes, eventosCalendario]);
 
   const handleCalcular = () => {
     setError("");

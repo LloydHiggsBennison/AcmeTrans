@@ -386,6 +386,17 @@ export default function App() {
 
       auditLog.log('GENERAR_COTIZACION', 'Cotizacion', cotizacionBase);
       logger.info('Quote generated');
+
+      // Actualizar estado del conductor a OCUPADO
+      if (cotizacionBase.conductorId) {
+        setConductores((prev) =>
+          prev.map((c) =>
+            c.id === Number(cotizacionBase.conductorId)
+              ? { ...c, estado: ESTADOS.CONDUCTOR.OCUPADO }
+              : c
+          )
+        );
+      }
     } catch (error) {
       const message = handleError(error, 'Generar cotización');
       showNotification(message);
@@ -511,9 +522,33 @@ export default function App() {
       );
 
       // Eliminar evento del calendario asociado a esta cotización
-      setEventosCalendario((prev) =>
-        prev.filter((ev) => ev.cotizacionId !== cotizacionId)
-      );
+      const eventosFiltrados = eventosCalendario.filter((ev) => ev.cotizacionId !== cotizacionId);
+      setEventosCalendario(eventosFiltrados);
+
+      // Verificar si el conductor queda libre
+      const cotizacion = cotizaciones.find(c => c.id === cotizacionId);
+      if (cotizacion && cotizacion.conductorId) {
+        const conductorId = cotizacion.conductorId;
+
+        // Tiene otros viajes en curso?
+        const tieneViajes = viajes.some(v =>
+          v.conductorId === conductorId &&
+          v.estado === ESTADOS.VIAJE.EN_CURSO
+        );
+
+        // Tiene otros eventos en calendario?
+        const tieneEventos = eventosFiltrados.some(e =>
+          e.conductorId === conductorId
+        );
+
+        if (!tieneViajes && !tieneEventos) {
+          setConductores((prev) =>
+            prev.map((c) =>
+              c.id === conductorId ? { ...c, estado: ESTADOS.CONDUCTOR.DISPONIBLE } : c
+            )
+          );
+        }
+      }
 
       auditLog.log('RECHAZAR_COTIZACION', 'Cotizacion', { cotizacionId });
       logger.info('Quote rejected', { cotizacionId });
@@ -571,13 +606,36 @@ export default function App() {
       }
 
       // Eliminar el evento del calendario
-      setEventosCalendario((prev) =>
-        prev.filter((ev) => ev.id !== eventoId)
-      );
+      const eventosRestantes = eventosCalendario.filter((ev) => ev.id !== eventoId);
+      setEventosCalendario(eventosRestantes);
+
+      // Verificar si el conductor queda libre
+      if (evento && evento.conductorId) {
+        const conductorId = evento.conductorId;
+
+        // Tiene otros viajes en curso?
+        const tieneViajes = viajes.some(v =>
+          v.conductorId === conductorId &&
+          v.estado === ESTADOS.VIAJE.EN_CURSO
+        );
+
+        // Tiene otros eventos en calendario?
+        const tieneEventos = eventosRestantes.some(e =>
+          e.conductorId === conductorId
+        );
+
+        if (!tieneViajes && !tieneEventos) {
+          setConductores((prev) =>
+            prev.map((c) =>
+              c.id === conductorId ? { ...c, estado: ESTADOS.CONDUCTOR.DISPONIBLE } : c
+            )
+          );
+        }
+      }
 
       auditLog.log('ELIMINAR_EVENTO_CALENDARIO', 'EventoCalendario', { eventoId });
       logger.info('Calendar event deleted', { eventoId });
-      showNotification("Evento eliminado y conductor liberado");
+      showNotification("Evento eliminado y conductor liberado si corresponde");
     } catch (error) {
       const message = handleError(error, 'Eliminar evento de calendario');
       showNotification(message);
@@ -647,6 +705,7 @@ export default function App() {
         viajes={viajes}
         solicitudes={solicitudes}
         cotizaciones={cotizaciones}
+        eventosCalendario={eventosCalendario}
         userRole={currentUser?.role}
         onGestionarSolicitud={handleGestionarSolicitud}
         onAsignarSolicitud={handleAsignarSolicitud}
